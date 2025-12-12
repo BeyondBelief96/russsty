@@ -1,7 +1,3 @@
-pub const WINDOW_WIDTH: u32 = 800;
-pub const WINDOW_HEIGHT: u32 = 600;
-
-// Colors in ARGB8888 format
 pub const COLOR_BACKGROUND: u32 = 0xFF1E1E1E;
 pub const COLOR_GRID: u32 = 0xFF333333;
 pub const COLOR_MAGENTA: u32 = 0xFFFF00FF;
