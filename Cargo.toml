@@ -4,5 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+approx = "0.5.1"
 sdl2 = "0.38.0"
 tobj = "4.0.3"

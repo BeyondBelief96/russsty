@@ -7,6 +7,7 @@ pub struct Engine {
     renderer: Renderer,
     triangles_to_render: Vec<Triangle>,
     mesh: Mesh,
+    pub backface_culling: bool,
 }
 
 impl Engine {
@@ -15,6 +16,7 @@ impl Engine {
             renderer: Renderer::new(width, height),
             triangles_to_render: Vec::new(),
             mesh: Mesh::new(vec![], vec![], Vec3::ZERO),
+            backface_culling: true,
         }
     }
 

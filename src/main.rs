@@ -19,13 +19,15 @@ fn project(point: &Vec3) -> Option<Vec2> {
     ))
 }
 
-fn update(camera_position: &Vec3, engine: &mut Engine) {
+fn update(camera_position: Vec3, engine: &mut Engine) {
     let faces = engine.mesh().faces().to_vec();
     let vertices = engine.mesh().vertices().to_vec();
     let rotation = engine.mesh().rotation();
     let buffer_width = engine.renderer().width();
     let buffer_height = engine.renderer().height();
-    let triangles = engine.get_triangles_to_render_mut();
+    let backface_culling = engine.backface_culling;
+
+    let mut triangles = Vec::new();
 
     for face in faces.iter() {
         let face_vertices = [
@@ -33,14 +35,31 @@ fn update(camera_position: &Vec3, engine: &mut Engine) {
             vertices[face.b as usize - 1],
             vertices[face.c as usize - 1],
         ];
-
-        let mut projected_points = Vec::new();
+        let mut transformed_vertices = Vec::new();
         for vertex in face_vertices.iter() {
             let mut transformed_vertex = *vertex;
             transformed_vertex = transformed_vertex.rotate_x(rotation.x);
             transformed_vertex = transformed_vertex.rotate_y(rotation.y);
             transformed_vertex = transformed_vertex.rotate_z(rotation.z);
             transformed_vertex.z -= camera_position.z;
+            transformed_vertices.push(transformed_vertex);
+        }
+
+        // Apply backface culling
+        if backface_culling {
+            let vec_ba = transformed_vertices[1] - transformed_vertices[0];
+            let vec_ca = transformed_vertices[2] - transformed_vertices[0];
+            let normal = vec_ba.cross(vec_ca);
+
+            // Camera ray points from vertex to camera. If dot product is negative, triangle is facing away from camera
+            let camera_ray = camera_position - transformed_vertices[0];
+            if normal.dot(camera_ray) < 0.0 {
+                continue;
+            };
+        }
+
+        let mut projected_points = Vec::new();
+        for transformed_vertex in transformed_vertices.iter() {
             if let Some(mut projected) = project(&transformed_vertex) {
                 // Adjust triangle points to be centered on screen
                 projected.x += buffer_width as f32 / 2.0;
@@ -57,6 +76,8 @@ fn update(camera_position: &Vec3, engine: &mut Engine) {
             });
         }
     }
+
+    engine.set_triangles_to_render(triangles);
 }
 
 fn render(engine: &mut Engine) {
@@ -77,7 +98,6 @@ fn render(engine: &mut Engine) {
 fn main() -> Result<(), String> {
     let mut window = Window::new("Russsty", WINDOW_WIDTH, WINDOW_HEIGHT)?;
     let mut engine = Engine::new(window.width(), window.height());
-    //engine.load_cube_mesh();
     engine
         .load_mesh("assets/f22.obj")
         .map_err(|e| e.to_string())?;
@@ -99,12 +119,12 @@ fn main() -> Result<(), String> {
         let delta_time = frame_limiter.wait_and_get_delta(&window);
 
         // Only run update/render after enough time has passed for this frame.
-        engine.mesh_mut().rotation_mut().y += 0.00;
-        engine.mesh_mut().rotation_mut().z += 0.00;
+        engine.mesh_mut().rotation_mut().y += 0.01;
+        engine.mesh_mut().rotation_mut().z += 0.01;
         engine.mesh_mut().rotation_mut().x += 0.01;
 
         engine.clear_triangles_to_render();
-        update(&camera_position, &mut engine);
+        update(camera_position, &mut engine);
         render(&mut engine);
         window.present(engine.renderer().as_bytes())?;
     }
