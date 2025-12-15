@@ -20,8 +20,8 @@ impl Mesh {
     }
 
     /// Get a reference to the rotation vector
-    pub fn rotation(&self) -> &Vec3 {
-        &self.rotation
+    pub fn rotation(&self) -> Vec3 {
+        self.rotation
     }
 
     /// Get a mutable reference to the rotation vector

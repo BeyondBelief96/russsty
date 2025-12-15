@@ -22,7 +22,7 @@ fn update(camera_position: &Vec3, engine: &mut Engine){
     // Collect mesh data first to avoid borrow checker issues
     let faces: Vec<_> = engine.mesh().faces().to_vec();
     let vertices = engine.mesh().vertices().to_vec();
-    let rotation = *engine.mesh().rotation();
+    let rotation = engine.mesh().rotation();
     let buffer_width = engine.buffer_width();
     let buffer_height = engine.buffer_height();
     let triangles = engine.get_triangles_to_render_mut();
