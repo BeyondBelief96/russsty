@@ -10,6 +10,12 @@ pub struct Face {
     pub c: u32,
 }
 
+impl Face {
+    pub fn new(a: u32, b: u32, c: u32) -> Self {
+        Face { a, b, c }
+    }
+}
+
 // This struct represents a triangle defined by three points
 // The points are 2D coordinates in screen space
 #[derive(Clone, Debug, PartialEq)]

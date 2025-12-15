@@ -1,8 +1,44 @@
+use std::fmt;
+
 use crate::math::vec3::Vec3;
 use crate::triangle::Face;
 
 pub const N_CUBE_VERTICES: usize = 8;
 pub const N_CUBE_FACES: usize = 12;
+
+#[derive(Debug)]
+pub enum LoadError {
+    Tobj(tobj::LoadError),
+    NoModels,
+    NoVertices,
+    InvalidFaces,
+}
+
+impl fmt::Display for LoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LoadError::Tobj(e) => write!(f, "failed to load OBJ: {}", e),
+            LoadError::NoModels => write!(f, "OBJ file contains no models"),
+            LoadError::NoVertices => write!(f, "mesh has no vertices"),
+            LoadError::InvalidFaces => write!(f, "face indices not divisible by 3"),
+        }
+    }
+}
+
+impl std::error::Error for LoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            LoadError::Tobj(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<tobj::LoadError> for LoadError {
+    fn from(e: tobj::LoadError) -> Self {
+        LoadError::Tobj(e)
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mesh {
@@ -17,6 +53,37 @@ pub struct Mesh {
 impl Mesh {
     pub fn new(vertices: Vec<Vec3>, faces: Vec<Face>, rotation: Vec3) -> Self {
         Self { vertices, faces, rotation }
+    }
+
+    pub fn from_obj(file_path: &str) -> Result<Self, LoadError> {
+        let (models, _materials) = tobj::load_obj(file_path, &tobj::GPU_LOAD_OPTIONS)?;
+
+        let model = models.into_iter().next().ok_or(LoadError::NoModels)?;
+        let mesh = model.mesh;
+
+        if mesh.positions.is_empty() {
+            return Err(LoadError::NoVertices);
+        }
+
+        if mesh.indices.len() % 3 != 0 {
+            return Err(LoadError::InvalidFaces);
+        }
+
+        // Convert flat [x, y, z, x, y, z, ...] to Vec3
+        let vertices: Vec<Vec3> = mesh
+            .positions
+            .chunks_exact(3)
+            .map(|c| Vec3::new(c[0], c[1], c[2]))
+            .collect();
+
+        // Convert flat indices to Face (tobj is 0-based, add 1 for 1-based convention)
+        let faces: Vec<Face> = mesh
+            .indices
+            .chunks_exact(3)
+            .map(|c| Face::new(c[0] + 1, c[1] + 1, c[2] + 1))
+            .collect();
+
+        Ok(Self::new(vertices, faces, Vec3::ZERO))
     }
 
     /// Get a reference to the rotation vector
