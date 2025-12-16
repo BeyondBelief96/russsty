@@ -1,36 +1,67 @@
 use crate::math::vec2::Vec2;
 use crate::math::vec3::Vec3;
 use crate::mesh::{LoadError, Mesh, CUBE_FACES, CUBE_VERTICES};
-use crate::renderer::{Renderer, COLOR_BACKGROUND, COLOR_GREEN, COLOR_GRID, COLOR_MAGENTA};
-use crate::triangle::Triangle;
+use crate::rasterizer::{Rasterizer, ScanlineRasterizer, Triangle};
+use crate::renderer::{Renderer, COLOR_BACKGROUND, COLOR_GRID};
 
 const DEFAULT_FOV_FACTOR: f32 = 640.0;
 
+// Configurable colors - change these at compile time
+pub mod colors {
+    pub const FILL: u32 = 0xFF444444; // Gray fill
+    pub const WIREFRAME: u32 = 0xFF00FF00; // Green wireframe
+    pub const VERTEX: u32 = 0xFFFF0000; // Red vertices
+}
+
+/// Rendering mode presets
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RenderMode {
+    /// Wireframe only (key: 1)
+    Wireframe,
+    /// Wireframe + vertices (key: 2)
+    WireframeVertices,
+    /// Filled + wireframe (key: 3)
+    #[default]
+    FilledWireframe,
+    /// Filled + wireframe + vertices (key: 4)
+    FilledWireframeVertices,
+    /// Filled only (key: 5)
+    Filled,
+}
+
 pub struct Engine {
     renderer: Renderer,
+    rasterizer: ScanlineRasterizer,
     triangles_to_render: Vec<Triangle>,
     mesh: Mesh,
     camera_position: Vec3,
     fov_factor: f32,
+    render_mode: RenderMode,
     pub backface_culling: bool,
     pub draw_grid: bool,
-    pub draw_vertices: bool,
-    pub draw_wireframe: bool,
 }
 
 impl Engine {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             renderer: Renderer::new(width, height),
+            rasterizer: ScanlineRasterizer::new(),
             triangles_to_render: Vec::new(),
             mesh: Mesh::new(vec![], vec![], Vec3::ZERO),
             camera_position: Vec3::new(0.0, 0.0, -5.0),
             fov_factor: DEFAULT_FOV_FACTOR,
+            render_mode: RenderMode::default(),
             backface_culling: true,
             draw_grid: true,
-            draw_vertices: true,
-            draw_wireframe: true,
         }
+    }
+
+    pub fn set_render_mode(&mut self, mode: RenderMode) {
+        self.render_mode = mode;
+    }
+
+    pub fn render_mode(&self) -> RenderMode {
+        self.render_mode
     }
 
     pub fn load_cube_mesh(&mut self) {
@@ -117,6 +148,8 @@ impl Engine {
             if backface_culling {
                 let vec_ba = transformed_vertices[1] - transformed_vertices[0];
                 let vec_ca = transformed_vertices[2] - transformed_vertices[0];
+
+                // This normal is not normalized, but we only care about its direction.
                 let normal = vec_ba.cross(vec_ca);
                 let camera_ray = camera_position - transformed_vertices[0];
                 if normal.dot(camera_ray) < 0.0 {
@@ -124,22 +157,23 @@ impl Engine {
                 }
             }
 
-            let mut projected_points = Vec::new();
-            for transformed_vertex in transformed_vertices.iter() {
-                if let Some(mut projected) = self.project(*transformed_vertex) {
-                    // Adjust triangle points to be centered on screen
-                    projected.x += buffer_width as f32 / 2.0;
-                    projected.y += buffer_height as f32 / 2.0;
-                    projected_points.push(projected);
-                }
-            }
+            // Project all three vertices; skip triangle if any fail
+            let p0 = self.project(transformed_vertices[0]);
+            let p1 = self.project(transformed_vertices[1]);
+            let p2 = self.project(transformed_vertices[2]);
 
-            // Only create triangle if all three vertices were successfully projected
-            if projected_points.len() == 3 {
-                triangles.push(Triangle {
-                    points: projected_points,
-                    color: COLOR_GREEN,
-                });
+            if let (Some(mut p0), Some(mut p1), Some(mut p2)) = (p0, p1, p2) {
+                // Center on screen
+                let half_width = buffer_width as f32 / 2.0;
+                let half_height = buffer_height as f32 / 2.0;
+                p0.x += half_width;
+                p0.y += half_height;
+                p1.x += half_width;
+                p1.y += half_height;
+                p2.x += half_width;
+                p2.y += half_height;
+
+                triangles.push(Triangle::new([p0, p1, p2], colors::FILL));
             }
         }
 
@@ -154,14 +188,35 @@ impl Engine {
             self.renderer.draw_grid(50, COLOR_GRID);
         }
 
-        for triangle in self.triangles_to_render.iter() {
-            if self.draw_vertices {
-                for vertex in triangle.points.iter() {
-                    self.renderer.draw_rect(vertex.x as i32, vertex.y as i32, 4, 4, COLOR_MAGENTA);
-                }
+        // Determine what to draw based on render mode
+        let (draw_filled, draw_wireframe, draw_vertices) = match self.render_mode {
+            RenderMode::Wireframe => (false, true, false),
+            RenderMode::WireframeVertices => (false, true, true),
+            RenderMode::FilledWireframe => (true, true, false),
+            RenderMode::FilledWireframeVertices => (true, true, true),
+            RenderMode::Filled => (true, false, false),
+        };
+
+        // Fill triangles first (requires framebuffer borrow)
+        if draw_filled {
+            let mut fb = self.renderer.as_framebuffer();
+            for triangle in &self.triangles_to_render {
+                self.rasterizer
+                    .fill_triangle(triangle, &mut fb, triangle.color);
             }
-            if self.draw_wireframe {
-                self.renderer.draw_triangle(triangle);
+        }
+
+        // Wireframe and vertices (uses renderer methods)
+        for triangle in &self.triangles_to_render {
+            if draw_wireframe {
+                self.renderer
+                    .draw_triangle_wireframe(triangle, colors::WIREFRAME);
+            }
+            if draw_vertices {
+                for vertex in &triangle.points {
+                    self.renderer
+                        .draw_rect(vertex.x as i32, vertex.y as i32, 4, 4, colors::VERTEX);
+                }
             }
         }
     }

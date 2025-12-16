@@ -1,10 +1,24 @@
 use std::fmt;
 
 use crate::math::vec3::Vec3;
-use crate::triangle::Face;
 
-pub const N_CUBE_VERTICES: usize = 8;
-pub const N_CUBE_FACES: usize = 12;
+pub(crate) const N_CUBE_VERTICES: usize = 8;
+pub(crate) const N_CUBE_FACES: usize = 12;
+
+/// Represents a triangle face defined by three vertex indices.
+/// The indices are 1-based into the mesh's vertex array.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Face {
+    pub a: u32,
+    pub b: u32,
+    pub c: u32,
+}
+
+impl Face {
+    pub const fn new(a: u32, b: u32, c: u32) -> Self {
+        Self { a, b, c }
+    }
+}
 
 #[derive(Debug)]
 pub enum LoadError {
@@ -42,23 +56,27 @@ impl From<tobj::LoadError> for LoadError {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Mesh {
-    /// The vertices of the mesh
-    pub vertices: Vec<Vec3>,
-    /// The faces of the mesh
-    pub faces: Vec<Face>,
-    /// The rotation about the x, y, and z axes for the mesh
-    pub rotation: Vec3,
+    vertices: Vec<Vec3>,
+    faces: Vec<Face>,
+    rotation: Vec3,
 }
 
 impl Mesh {
-    pub fn new(vertices: Vec<Vec3>, faces: Vec<Face>, rotation: Vec3) -> Self {
-        Self { vertices, faces, rotation }
+    pub(crate) fn new(vertices: Vec<Vec3>, faces: Vec<Face>, rotation: Vec3) -> Self {
+        Self {
+            vertices,
+            faces,
+            rotation,
+        }
     }
 
-    pub fn from_obj(file_path: &str) -> Result<Self, LoadError> {
+    pub(crate) fn from_obj(file_path: &str) -> Result<Self, LoadError> {
         let (models, _materials) = tobj::load_obj(file_path, &tobj::GPU_LOAD_OPTIONS)?;
 
+        // For now we only support a single model
         let model = models.into_iter().next().ok_or(LoadError::NoModels)?;
+
+        // For now we assume a single mesh per model.
         let mesh = model.mesh;
 
         if mesh.positions.is_empty() {
@@ -86,7 +104,7 @@ impl Mesh {
         Ok(Self::new(vertices, faces, Vec3::ZERO))
     }
 
-    /// Get a reference to the rotation vector
+    /// Get the rotation vector
     pub fn rotation(&self) -> Vec3 {
         self.rotation
     }
@@ -97,17 +115,17 @@ impl Mesh {
     }
 
     /// Get a reference to the vertices
-    pub fn vertices(&self) -> &[Vec3] {
+    pub(crate) fn vertices(&self) -> &[Vec3] {
         &self.vertices
     }
 
     /// Get a reference to the faces
-    pub fn faces(&self) -> &[Face] {
+    pub(crate) fn faces(&self) -> &[Face] {
         &self.faces
     }
 }
 
-pub const CUBE_VERTICES: [Vec3; N_CUBE_VERTICES] = [
+pub(crate) const CUBE_VERTICES: [Vec3; N_CUBE_VERTICES] = [
     Vec3::new(-1.0, -1.0, -1.0),
     Vec3::new(-1.0, 1.0, -1.0),
     Vec3::new(1.0, 1.0, -1.0),
@@ -118,19 +136,19 @@ pub const CUBE_VERTICES: [Vec3; N_CUBE_VERTICES] = [
     Vec3::new(-1.0, -1.0, 1.0),
 ];
 
-pub const CUBE_FACES: [Face; N_CUBE_FACES] = [
+pub(crate) const CUBE_FACES: [Face; N_CUBE_FACES] = [
     // Front face
-    Face { a: 1, b: 2, c: 3},
-    Face { a: 1, b: 3, c: 4},
+    Face { a: 1, b: 2, c: 3 },
+    Face { a: 1, b: 3, c: 4 },
     // Right face
-    Face { a: 4, b: 3, c: 5},
-    Face { a: 4, b: 5, c: 6},
+    Face { a: 4, b: 3, c: 5 },
+    Face { a: 4, b: 5, c: 6 },
     // Back face
-    Face { a: 6, b: 5, c: 7},
-    Face { a: 6, b: 7, c: 8},
+    Face { a: 6, b: 5, c: 7 },
+    Face { a: 6, b: 7, c: 8 },
     // Left face
-    Face { a: 8, b: 7, c: 2},
-    Face { a: 8, b: 2, c: 1},
+    Face { a: 8, b: 7, c: 2 },
+    Face { a: 8, b: 2, c: 1 },
     // Top face
     Face { a: 2, b: 7, c: 5 },
     Face { a: 2, b: 5, c: 3 },

@@ -1,12 +1,12 @@
-use russsty::engine::Engine;
-use russsty::window::{FrameLimiter, Window, WindowEvent, WINDOW_HEIGHT, WINDOW_WIDTH};
+use russsty::engine::{Engine, RenderMode};
+use russsty::window::{FrameLimiter, Key, Window, WindowEvent, WINDOW_HEIGHT, WINDOW_WIDTH};
 
 fn main() -> Result<(), String> {
     let mut window = Window::new("Russsty", WINDOW_WIDTH, WINDOW_HEIGHT)?;
     let mut engine = Engine::new(window.width(), window.height());
 
     engine
-        .load_mesh("assets/f22.obj")
+        .load_mesh("assets/cube.obj")
         .map_err(|e| e.to_string())?;
 
     let mut frame_limiter = FrameLimiter::new(&window);
@@ -17,6 +17,16 @@ fn main() -> Result<(), String> {
             WindowEvent::Resize(w, h) => {
                 window.resize(w, h)?;
                 engine.resize(w, h);
+            }
+            WindowEvent::KeyPress(key) => {
+                let mode = match key {
+                    Key::Num1 => RenderMode::Wireframe,
+                    Key::Num2 => RenderMode::WireframeVertices,
+                    Key::Num3 => RenderMode::FilledWireframe,
+                    Key::Num4 => RenderMode::FilledWireframeVertices,
+                    Key::Num5 => RenderMode::Filled,
+                };
+                engine.set_render_mode(mode);
             }
             WindowEvent::None => {}
         }

@@ -13,6 +13,16 @@ pub enum WindowEvent {
     None,
     Quit,
     Resize(u32, u32),
+    KeyPress(Key),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Key {
+    Num1,
+    Num2,
+    Num3,
+    Num4,
+    Num5,
 }
 
 pub struct FrameLimiter {
@@ -102,6 +112,19 @@ impl Window {
                     win_event: sdl2::event::WindowEvent::Resized(w, h),
                     ..
                 } => return WindowEvent::Resize(w as u32, h as u32),
+                Event::KeyDown { keycode: Some(keycode), .. } => {
+                    let key = match keycode {
+                        Keycode::Num1 => Some(Key::Num1),
+                        Keycode::Num2 => Some(Key::Num2),
+                        Keycode::Num3 => Some(Key::Num3),
+                        Keycode::Num4 => Some(Key::Num4),
+                        Keycode::Num5 => Some(Key::Num5),
+                        _ => None,
+                    };
+                    if let Some(k) = key {
+                        return WindowEvent::KeyPress(k);
+                    }
+                }
                 _ => {}
             }
         }
