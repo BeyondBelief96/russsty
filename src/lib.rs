@@ -12,3 +12,11 @@ pub(crate) mod renderer;
 // Re-export commonly needed types at crate root for convenience
 pub use engine::Engine;
 pub use mesh::{LoadError, Mesh};
+
+/// Module exposing internals for benchmarking. Not part of the stable API.
+pub mod bench {
+    pub use crate::framebuffer::FrameBuffer;
+    pub use crate::rasterizer::{
+        EdgeFunctionRasterizer, Rasterizer, ScanlineRasterizer, Triangle,
+    };
+}

@@ -3,7 +3,7 @@
 /// Wraps a 1D slice with width/height metadata to enable safe 2D pixel access.
 /// This is a borrowed view, not an owning type - it's meant to be created
 /// temporarily when you need to pass buffer + dimensions together.
-pub(crate) struct FrameBuffer<'a> {
+pub struct FrameBuffer<'a> {
     data: &'a mut [u32],
     width: u32,
     height: u32,
@@ -20,7 +20,11 @@ impl<'a> FrameBuffer<'a> {
             (width * height) as usize,
             "Buffer size doesn't match dimensions"
         );
-        Self { data, width, height }
+        Self {
+            data,
+            width,
+            height,
+        }
     }
 
     pub fn width(&self) -> u32 {

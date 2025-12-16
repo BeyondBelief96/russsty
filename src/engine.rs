@@ -1,8 +1,10 @@
 use crate::math::vec2::Vec2;
 use crate::math::vec3::Vec3;
 use crate::mesh::{LoadError, Mesh, CUBE_FACES, CUBE_VERTICES};
-use crate::rasterizer::{Rasterizer, ScanlineRasterizer, Triangle};
+use crate::rasterizer::{Rasterizer, RasterizerDispatcher, Triangle};
 use crate::renderer::{Renderer, COLOR_BACKGROUND, COLOR_GRID};
+
+pub use crate::rasterizer::RasterizerType;
 
 const DEFAULT_FOV_FACTOR: f32 = 640.0;
 
@@ -31,7 +33,7 @@ pub enum RenderMode {
 
 pub struct Engine {
     renderer: Renderer,
-    rasterizer: ScanlineRasterizer,
+    rasterizer: RasterizerDispatcher,
     triangles_to_render: Vec<Triangle>,
     mesh: Mesh,
     camera_position: Vec3,
@@ -45,7 +47,7 @@ impl Engine {
     pub fn new(width: u32, height: u32) -> Self {
         Self {
             renderer: Renderer::new(width, height),
-            rasterizer: ScanlineRasterizer::new(),
+            rasterizer: RasterizerDispatcher::new(RasterizerType::default()),
             triangles_to_render: Vec::new(),
             mesh: Mesh::new(vec![], vec![], Vec3::ZERO),
             camera_position: Vec3::new(0.0, 0.0, -5.0),
@@ -62,6 +64,14 @@ impl Engine {
 
     pub fn render_mode(&self) -> RenderMode {
         self.render_mode
+    }
+
+    pub fn set_rasterizer(&mut self, rasterizer_type: RasterizerType) {
+        self.rasterizer.set_type(rasterizer_type);
+    }
+
+    pub fn rasterizer(&self) -> RasterizerType {
+        self.rasterizer.active_type()
     }
 
     pub fn load_cube_mesh(&mut self) {

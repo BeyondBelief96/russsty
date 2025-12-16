@@ -23,6 +23,9 @@ pub enum Key {
     Num3,
     Num4,
     Num5,
+    C, // Toggle backface culling
+    G, // Toggle grid
+    R, // Toggle rasterizer
 }
 
 pub struct FrameLimiter {
@@ -119,6 +122,9 @@ impl Window {
                         Keycode::Num3 => Some(Key::Num3),
                         Keycode::Num4 => Some(Key::Num4),
                         Keycode::Num5 => Some(Key::Num5),
+                        Keycode::C => Some(Key::C),
+                        Keycode::G => Some(Key::G),
+                        Keycode::R => Some(Key::R),
                         _ => None,
                     };
                     if let Some(k) = key {
@@ -165,5 +171,9 @@ impl Window {
 
     pub fn timer(&self) -> &sdl2::TimerSubsystem {
         &self.timer_subsystem
+    }
+
+    pub fn set_title(&mut self, title: &str) {
+        let _ = self.canvas.window_mut().set_title(title);
     }
 }
