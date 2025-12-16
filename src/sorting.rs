@@ -61,3 +61,56 @@ fn merge_descending(left: Vec<Triangle>, right: Vec<Triangle>) -> Vec<Triangle> 
     result.extend(right_iter);
     result
 }
+
+/// Quick sort triangles by avg_depth in descending order (furthest first).
+///
+/// Uses the Lomuto partition scheme with the last element as pivot.
+///
+/// Time complexity: O(n log n) average, O(n²) worst case
+/// Space complexity: O(log n) for recursion stack
+#[allow(dead_code)]
+pub fn quick_sort_by_depth_descending(triangles: &mut [Triangle]) {
+    if triangles.len() <= 1 {
+        return;
+    }
+
+    let pivot_idx = partition_descending(triangles);
+
+    // Sort left partition (elements before pivot)
+    if pivot_idx > 0 {
+        quick_sort_by_depth_descending(&mut triangles[..pivot_idx]);
+    }
+    // Sort right partition (elements after pivot)
+    if pivot_idx + 1 < triangles.len() {
+        quick_sort_by_depth_descending(&mut triangles[pivot_idx + 1..]);
+    }
+}
+
+/// Partition the slice around a pivot (Lomuto scheme).
+///
+/// After partitioning:
+/// - Elements with depth >= pivot are on the left
+/// - Elements with depth < pivot are on the right
+/// - Pivot is in its final sorted position
+///
+/// Returns the final index of the pivot element.
+fn partition_descending(triangles: &mut [Triangle]) -> usize {
+    let pivot_idx = triangles.len() - 1;
+    let pivot_depth = triangles[pivot_idx].avg_depth;
+
+    // i tracks where the next "large" element should go
+    let mut i = 0;
+
+    for j in 0..pivot_idx {
+        // For descending order: larger depths go first
+        if triangles[j].avg_depth >= pivot_depth {
+            triangles.swap(i, j);
+            i += 1;
+        }
+    }
+
+    // Place pivot in its final position
+    triangles.swap(i, pivot_idx);
+
+    i
+}

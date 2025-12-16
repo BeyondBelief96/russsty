@@ -8,7 +8,7 @@ use crate::framebuffer::FrameBuffer;
 use crate::math::vec3::Vec3;
 
 /// A triangle ready for rasterization in screen space.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Triangle {
     pub points: [Vec3; 3],
     pub color: u32,

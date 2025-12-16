@@ -198,8 +198,7 @@ impl Engine {
 
         // Sort triangles by depth using the painter's algorithm (descending order)
         // Further away triangles are drawn first
-        self.triangles_to_render
-            .sort_by(|a, b| a.avg_depth.partial_cmp(&b.avg_depth).unwrap());
+        triangles.sort_by(|a, b| b.avg_depth.partial_cmp(&a.avg_depth).unwrap());
 
         self.triangles_to_render = triangles;
     }
