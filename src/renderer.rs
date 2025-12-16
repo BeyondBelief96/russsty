@@ -67,9 +67,9 @@ impl Renderer {
     pub(crate) fn draw_triangle_wireframe(&mut self, triangle: &Triangle, color: u32) {
         let [p0, p1, p2] = triangle.points;
 
-        self.draw_line(p0.x as i32, p0.y as i32, p1.x as i32, p1.y as i32, color);
-        self.draw_line(p1.x as i32, p1.y as i32, p2.x as i32, p2.y as i32, color);
-        self.draw_line(p2.x as i32, p2.y as i32, p0.x as i32, p0.y as i32, color);
+        self.draw_line_bresenham(p0.x as i32, p0.y as i32, p1.x as i32, p1.y as i32, color);
+        self.draw_line_bresenham(p1.x as i32, p1.y as i32, p2.x as i32, p2.y as i32, color);
+        self.draw_line_bresenham(p2.x as i32, p2.y as i32, p0.x as i32, p0.y as i32, color);
     }
 
     /// Draws a line between two points using Bresenham's line algorithm.
@@ -82,7 +82,7 @@ impl Renderer {
     /// distance), we decide whether to also step along the minor axis based on
     /// accumulated error. When the error exceeds a threshold, we step diagonally
     /// instead of straight.
-    pub(crate) fn draw_line(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u32) {
+    pub(crate) fn draw_line_bresenham(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u32) {
         // Calculate the absolute distances in each axis.
         // These represent how far we need to travel horizontally and vertically.
         let dx = (x1 - x0).abs();
