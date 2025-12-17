@@ -1,10 +1,19 @@
+//! Triangle rasterization algorithms.
+//!
+//! This module provides multiple rasterizer implementations that can be
+//! swapped at runtime for testing and benchmarking purposes.
+//!
+//! Available algorithms:
+//! - [`ScanlineRasterizer`]: Flat-top/flat-bottom triangle decomposition
+//! - [`EdgeFunctionRasterizer`]: Bounding box iteration with edge function tests
+
 mod edgefunction;
 mod scanline;
 
 pub use edgefunction::EdgeFunctionRasterizer;
 pub use scanline::ScanlineRasterizer;
 
-use crate::framebuffer::FrameBuffer;
+use super::framebuffer::FrameBuffer;
 use crate::math::vec3::Vec3;
 
 /// A triangle ready for rasterization in screen space.
@@ -66,7 +75,7 @@ impl std::fmt::Display for RasterizerType {
 }
 
 /// Internal dispatcher that holds both rasterizer implementations.
-pub(crate) struct RasterizerDispatcher {
+pub struct RasterizerDispatcher {
     scanline: ScanlineRasterizer,
     edge_function: EdgeFunctionRasterizer,
     active: RasterizerType,

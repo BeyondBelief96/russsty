@@ -1,35 +1,7 @@
-use std::time::Instant;
-
 use russsty::engine::{Engine, RasterizerType, RenderMode};
-use russsty::window::{FrameLimiter, Key, Window, WindowEvent, WINDOW_HEIGHT, WINDOW_WIDTH};
-
-struct FpsCounter {
-    frame_count: u32,
-    last_update: Instant,
-}
-
-impl FpsCounter {
-    fn new() -> Self {
-        Self {
-            frame_count: 0,
-            last_update: Instant::now(),
-        }
-    }
-
-    /// Call each frame. Returns Some(fps) once per second, None otherwise.
-    fn tick(&mut self) -> Option<f64> {
-        self.frame_count += 1;
-        let elapsed = self.last_update.elapsed();
-        if elapsed.as_secs() >= 1 {
-            let fps = self.frame_count as f64 / elapsed.as_secs_f64();
-            self.frame_count = 0;
-            self.last_update = Instant::now();
-            Some(fps)
-        } else {
-            None
-        }
-    }
-}
+use russsty::window::{
+    FpsCounter, FrameLimiter, Key, Window, WindowEvent, WINDOW_HEIGHT, WINDOW_WIDTH,
+};
 
 fn format_window_title(fps: f64, engine: &Engine) -> String {
     format!(
@@ -80,11 +52,15 @@ fn main() -> Result<(), String> {
 
         let _delta_time = frame_limiter.wait_and_get_delta(&window);
 
-        // Rotate the mesh
-        let rotation = engine.mesh_mut().rotation_mut();
-        rotation.x += 0.01;
-        rotation.y += 0.01;
-        rotation.z += 0.01;
+        // Rotate and scalethe mesh
+        let mesh = engine.mesh_mut();
+        mesh.rotation_mut().x += 0.01;
+        mesh.rotation_mut().y += 0.01;
+        mesh.rotation_mut().z += 0.01;
+
+        mesh.scale_mut().x += 0.01;
+        mesh.scale_mut().y += 0.01;
+        mesh.scale_mut().z += 0.01;
 
         engine.update();
         engine.render();

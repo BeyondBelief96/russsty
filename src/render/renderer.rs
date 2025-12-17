@@ -1,52 +1,55 @@
-use crate::framebuffer::FrameBuffer;
-use crate::rasterizer::Triangle;
+//! Low-level rendering primitives.
+//!
+//! Provides the [`Renderer`] struct which owns the color buffer and implements
+//! basic drawing operations like lines, rectangles, and wireframes.
 
-pub(crate) const COLOR_BACKGROUND: u32 = 0xFF1E1E1E;
-pub(crate) const COLOR_GRID: u32 = 0xFF333333;
+use super::framebuffer::FrameBuffer;
+use super::rasterizer::Triangle;
+use crate::colors;
 
-pub(crate) struct Renderer {
+pub struct Renderer {
     color_buffer: Vec<u32>,
     width: u32,
     height: u32,
 }
 
 impl Renderer {
-    pub(crate) fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         let size = (width * height) as usize;
         Self {
-            color_buffer: vec![COLOR_BACKGROUND; size],
+            color_buffer: vec![colors::BACKGROUND; size],
             width,
             height,
         }
     }
 
-    pub(crate) fn resize(&mut self, width: u32, height: u32) {
+    pub fn resize(&mut self, width: u32, height: u32) {
         let size = (width * height) as usize;
-        self.color_buffer = vec![COLOR_BACKGROUND; size];
+        self.color_buffer = vec![colors::BACKGROUND; size];
         self.width = width;
         self.height = height;
     }
 
-    pub(crate) fn width(&self) -> u32 {
+    pub fn width(&self) -> u32 {
         self.width
     }
 
-    pub(crate) fn height(&self) -> u32 {
+    pub fn height(&self) -> u32 {
         self.height
     }
 
-    pub(crate) fn clear(&mut self, color: u32) {
+    pub fn clear(&mut self, color: u32) {
         self.color_buffer.fill(color);
     }
 
-    pub(crate) fn set_pixel(&mut self, x: i32, y: i32, color: u32) {
+    pub fn set_pixel(&mut self, x: i32, y: i32, color: u32) {
         if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
             let index = (y as u32 * self.width + x as u32) as usize;
             self.color_buffer[index] = color;
         }
     }
 
-    pub(crate) fn draw_grid(&mut self, spacing: i32, color: u32) {
+    pub fn draw_grid(&mut self, spacing: i32, color: u32) {
         for y in 0..self.height as i32 {
             for x in 0..self.width as i32 {
                 if x % spacing == 0 || y % spacing == 0 {
@@ -56,7 +59,7 @@ impl Renderer {
         }
     }
 
-    pub(crate) fn draw_rect(&mut self, x: i32, y: i32, width: i32, height: i32, color: u32) {
+    pub fn draw_rect(&mut self, x: i32, y: i32, width: i32, height: i32, color: u32) {
         for dy in 0..height {
             for dx in 0..width {
                 self.set_pixel(x + dx, y + dy, color);
@@ -64,7 +67,7 @@ impl Renderer {
         }
     }
 
-    pub(crate) fn draw_triangle_wireframe(&mut self, triangle: &Triangle, color: u32) {
+    pub fn draw_triangle_wireframe(&mut self, triangle: &Triangle, color: u32) {
         let [p0, p1, p2] = triangle.points;
 
         self.draw_line_bresenham(p0.x as i32, p0.y as i32, p1.x as i32, p1.y as i32, color);
@@ -82,7 +85,7 @@ impl Renderer {
     /// distance), we decide whether to also step along the minor axis based on
     /// accumulated error. When the error exceeds a threshold, we step diagonally
     /// instead of straight.
-    pub(crate) fn draw_line_bresenham(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u32) {
+    pub fn draw_line_bresenham(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u32) {
         // Calculate the absolute distances in each axis.
         // These represent how far we need to travel horizontally and vertically.
         let dx = (x1 - x0).abs();
@@ -133,7 +136,7 @@ impl Renderer {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn draw_line_dda(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u32) {
+    pub fn draw_line_dda(&mut self, x0: i32, y0: i32, x1: i32, y1: i32, color: u32) {
         let dx = x1 - x0;
         let dy = y1 - y0;
 
@@ -164,7 +167,7 @@ impl Renderer {
     }
 
     /// Get a mutable FrameBuffer view into the color buffer.
-    pub(crate) fn as_framebuffer(&mut self) -> FrameBuffer<'_> {
+    pub fn as_framebuffer(&mut self) -> FrameBuffer<'_> {
         FrameBuffer::new(&mut self.color_buffer, self.width, self.height)
     }
 }

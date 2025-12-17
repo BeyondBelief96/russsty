@@ -1,5 +1,8 @@
+//! Edge function-based triangle rasterization.
+
 use super::{Rasterizer, Triangle};
 use crate::math::vec3::Vec3;
+use crate::render::framebuffer::FrameBuffer;
 
 /// Triangle rasterizer using the edge function algorithm.
 ///
@@ -24,13 +27,14 @@ impl EdgeFunctionRasterizer {
     }
 }
 
+impl Default for EdgeFunctionRasterizer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Rasterizer for EdgeFunctionRasterizer {
-    fn fill_triangle(
-        &self,
-        triangle: &Triangle,
-        buffer: &mut crate::framebuffer::FrameBuffer,
-        color: u32,
-    ) {
+    fn fill_triangle(&self, triangle: &Triangle, buffer: &mut FrameBuffer, color: u32) {
         let v0 = triangle.points[0];
         let v1 = triangle.points[1];
         let v2 = triangle.points[2];

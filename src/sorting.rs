@@ -3,7 +3,7 @@
 //! These are educational implementations. For production use,
 //! prefer the standard library's `sort_by` method.
 
-use crate::rasterizer::Triangle;
+use crate::render::Triangle;
 
 /// Bubble sort triangles by avg_depth in descending order (furthest first).
 ///

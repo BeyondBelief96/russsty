@@ -1,18 +1,18 @@
+//! Core rendering engine.
+//!
+//! The [`Engine`] struct is the main entry point for the renderer. It manages
+//! the rendering pipeline including mesh transformation, projection, and
+//! rasterization.
+
+use crate::colors;
+use crate::math::mat4::Mat4;
 use crate::math::vec3::Vec3;
 use crate::mesh::{LoadError, Mesh, CUBE_FACES, CUBE_VERTICES};
-use crate::rasterizer::{Rasterizer, RasterizerDispatcher, Triangle};
-use crate::renderer::{Renderer, COLOR_BACKGROUND, COLOR_GRID};
+use crate::render::{Rasterizer, RasterizerDispatcher, Renderer, Triangle};
 
-pub use crate::rasterizer::RasterizerType;
+pub use crate::render::RasterizerType;
 
 const DEFAULT_FOV_FACTOR: f32 = 640.0;
-
-// Configurable colors - change these at compile time
-pub mod colors {
-    pub const FILL: u32 = 0xFF444444; // Gray fill
-    pub const WIREFRAME: u32 = 0xFF00FF00; // Green wireframe
-    pub const VERTEX: u32 = 0xFFFF0000; // Red vertices
-}
 
 /// Rendering mode presets
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -48,7 +48,7 @@ impl Engine {
             renderer: Renderer::new(width, height),
             rasterizer: RasterizerDispatcher::new(RasterizerType::default()),
             triangles_to_render: Vec::new(),
-            mesh: Mesh::new(vec![], vec![], Vec3::ZERO),
+            mesh: Mesh::new(vec![], vec![], Vec3::ZERO, Vec3::ONE),
             camera_position: Vec3::new(0.0, 0.0, -5.0),
             fov_factor: DEFAULT_FOV_FACTOR,
             render_mode: RenderMode::default(),
@@ -74,7 +74,12 @@ impl Engine {
     }
 
     pub fn load_cube_mesh(&mut self) {
-        self.mesh = Mesh::new(CUBE_VERTICES.to_vec(), CUBE_FACES.to_vec(), Vec3::ZERO);
+        self.mesh = Mesh::new(
+            CUBE_VERTICES.to_vec(),
+            CUBE_FACES.to_vec(),
+            Vec3::ZERO,
+            Vec3::ONE,
+        );
     }
 
     pub fn load_mesh(&mut self, file_path: &str) -> Result<(), LoadError> {
@@ -130,13 +135,14 @@ impl Engine {
         let faces = self.mesh.faces().to_vec();
         let vertices = self.mesh.vertices().to_vec();
         let rotation = self.mesh.rotation();
+        let scale = self.mesh().scale();
         let buffer_width = self.renderer.width();
         let buffer_height = self.renderer.height();
         let camera_position = self.camera_position;
         let backface_culling = self.backface_culling;
 
         let mut triangles = Vec::new();
-
+        let scale_matrix = Mat4::scaling(scale.x, scale.y, scale.z);
         for face in faces.iter() {
             let face_vertices = [
                 vertices[face.a as usize - 1],
@@ -147,11 +153,12 @@ impl Engine {
             // Model Space --> World Space
             let mut transformed_vertices = Vec::new();
             for vertex in face_vertices.iter() {
-                let mut transformed_vertex = *vertex;
+                let mut transformed_vertex = scale_matrix * *vertex;
                 transformed_vertex = transformed_vertex.rotate_x(rotation.x);
                 transformed_vertex = transformed_vertex.rotate_y(rotation.y);
                 transformed_vertex = transformed_vertex.rotate_z(rotation.z);
                 transformed_vertex.z -= camera_position.z;
+
                 transformed_vertices.push(transformed_vertex);
             }
 
@@ -205,10 +212,10 @@ impl Engine {
 
     /// Render the current frame
     pub fn render(&mut self) {
-        self.renderer.clear(COLOR_BACKGROUND);
+        self.renderer.clear(colors::BACKGROUND);
 
         if self.draw_grid {
-            self.renderer.draw_grid(50, COLOR_GRID);
+            self.renderer.draw_grid(50, colors::GRID);
         }
 
         // Determine what to draw based on render mode

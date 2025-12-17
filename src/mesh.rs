@@ -1,3 +1,8 @@
+//! 3D mesh representation and loading.
+//!
+//! Provides the [`Mesh`] struct for storing vertices and faces, along with
+//! OBJ file loading support via the `tobj` crate.
+
 use std::fmt;
 
 use crate::math::vec3::Vec3;
@@ -59,14 +64,16 @@ pub struct Mesh {
     vertices: Vec<Vec3>,
     faces: Vec<Face>,
     rotation: Vec3,
+    scale: Vec3,
 }
 
 impl Mesh {
-    pub(crate) fn new(vertices: Vec<Vec3>, faces: Vec<Face>, rotation: Vec3) -> Self {
+    pub(crate) fn new(vertices: Vec<Vec3>, faces: Vec<Face>, rotation: Vec3, scale: Vec3) -> Self {
         Self {
             vertices,
             faces,
             rotation,
+            scale,
         }
     }
 
@@ -101,7 +108,7 @@ impl Mesh {
             .map(|c| Face::new(c[0] + 1, c[1] + 1, c[2] + 1))
             .collect();
 
-        Ok(Self::new(vertices, faces, Vec3::ZERO))
+        Ok(Self::new(vertices, faces, Vec3::ZERO, Vec3::ONE))
     }
 
     /// Get the rotation vector
@@ -112,6 +119,16 @@ impl Mesh {
     /// Get a mutable reference to the rotation vector
     pub fn rotation_mut(&mut self) -> &mut Vec3 {
         &mut self.rotation
+    }
+
+    /// Get the scale vector
+    pub fn scale(&self) -> Vec3 {
+        self.scale
+    }
+
+    /// Get a mutable reference to the scale vector
+    pub fn scale_mut(&mut self) -> &mut Vec3 {
+        &mut self.scale
     }
 
     /// Get a reference to the vertices

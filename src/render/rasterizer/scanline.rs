@@ -1,6 +1,8 @@
+//! Scanline-based triangle rasterization.
+
 use super::{Rasterizer, Triangle};
-use crate::framebuffer::FrameBuffer;
-use crate::math::{vec2::Vec2, vec3::Vec3};
+use crate::math::vec3::Vec3;
+use crate::render::framebuffer::FrameBuffer;
 
 /// Scanline-based triangle rasterizer.
 ///

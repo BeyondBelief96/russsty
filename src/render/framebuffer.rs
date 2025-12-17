@@ -1,3 +1,7 @@
+//! Frame buffer abstraction for 2D pixel access.
+//!
+//! Provides a safe view into a pixel buffer with bounds-checked access.
+
 /// A view into a 2D pixel buffer.
 ///
 /// Wraps a 1D slice with width/height metadata to enable safe 2D pixel access.

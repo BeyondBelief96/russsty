@@ -1,3 +1,10 @@
+//! SDL2 window management and event handling.
+//!
+//! Provides the [`Window`] struct for creating and managing the display window,
+//! handling input events, and presenting rendered frames.
+
+use std::time::Instant;
+
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -54,6 +61,41 @@ impl FrameLimiter {
 
         self.previous_frame_time = current_time;
         delta_time
+    }
+}
+
+/// Tracks frames per second with once-per-second updates.
+pub struct FpsCounter {
+    frame_count: u32,
+    last_update: Instant,
+}
+
+impl FpsCounter {
+    pub fn new() -> Self {
+        Self {
+            frame_count: 0,
+            last_update: Instant::now(),
+        }
+    }
+
+    /// Call each frame. Returns `Some(fps)` once per second, `None` otherwise.
+    pub fn tick(&mut self) -> Option<f64> {
+        self.frame_count += 1;
+        let elapsed = self.last_update.elapsed();
+        if elapsed.as_secs() >= 1 {
+            let fps = self.frame_count as f64 / elapsed.as_secs_f64();
+            self.frame_count = 0;
+            self.last_update = Instant::now();
+            Some(fps)
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for FpsCounter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

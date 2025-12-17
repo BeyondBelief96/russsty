@@ -1,23 +1,52 @@
+//! A CPU-based software-rendered 3D graphics engine.
+//!
+//! This crate provides a simple 3D rendering pipeline using SDL2 only for
+//! window management and display. All rendering is done on the CPU.
+//!
+//! # Quick Start
+//!
+//! ```ignore
+//! use russsty::prelude::*;
+//!
+//! let mut window = Window::new("My App", 800, 600)?;
+//! let mut engine = Engine::new(800, 600);
+//! engine.load_cube_mesh();
+//! ```
+
 // Public API - exposed to library consumers
+pub mod colors;
 pub mod engine;
 pub mod math;
 pub mod window;
 
 // Internal modules - used within the crate only
-pub(crate) mod framebuffer;
 pub(crate) mod mesh;
-pub(crate) mod rasterizer;
-pub(crate) mod renderer;
+pub(crate) mod render;
 pub(crate) mod sorting;
 
 // Re-export commonly needed types at crate root for convenience
-pub use engine::Engine;
+pub use engine::{Engine, RasterizerType, RenderMode};
 pub use mesh::{LoadError, Mesh};
+
+/// Prelude module for convenient imports.
+///
+/// # Example
+/// ```ignore
+/// use russsty::prelude::*;
+/// ```
+pub mod prelude {
+    pub use crate::engine::{Engine, RenderMode};
+    pub use crate::math::mat4::Mat4;
+    pub use crate::math::vec2::Vec2;
+    pub use crate::math::vec3::Vec3;
+    pub use crate::math::vec4::Vec4;
+    pub use crate::render::RasterizerType;
+    pub use crate::window::{FpsCounter, FrameLimiter, Key, Window, WindowEvent};
+}
 
 /// Module exposing internals for benchmarking. Not part of the stable API.
 pub mod bench {
-    pub use crate::framebuffer::FrameBuffer;
-    pub use crate::rasterizer::{
-        EdgeFunctionRasterizer, Rasterizer, ScanlineRasterizer, Triangle,
+    pub use crate::render::{
+        EdgeFunctionRasterizer, FrameBuffer, Rasterizer, ScanlineRasterizer, Triangle,
     };
 }
