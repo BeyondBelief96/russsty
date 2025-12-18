@@ -5,7 +5,7 @@
 
 use std::fmt;
 
-use crate::math::vec3::Vec3;
+use crate::{math::vec3::Vec3, prelude::Vec2};
 
 /// Represents a triangle face with indices into the vertex array.
 /// Uses 0-based indexing.
@@ -61,6 +61,7 @@ impl From<tobj::LoadError> for LoadError {
 pub(crate) struct Vertex {
     pub position: Vec3,
     pub normal: Vec3,
+    pub texel: Vec2,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -109,22 +110,45 @@ impl Mesh {
             return Err(LoadError::InvalidFaces);
         }
 
-        // With single_index: true, positions and normals are aligned
+        // With single_index: true, tobj aligns all vertex attributes by index.
+        // This means vertex i's data is found at:
+        //   - positions[i*3 .. i*3+3]  (x, y, z)
+        //   - normals[i*3 .. i*3+3]    (nx, ny, nz)
+        //   - texcoords[i*2 .. i*2+2]  (u, v)
+        //
+        // The flat arrays look like:
+        //   positions:  [x0, y0, z0, x1, y1, z1, x2, y2, z2, ...]
+        //   normals:    [nx0, ny0, nz0, nx1, ny1, nz1, ...]
+        //   texcoords:  [u0, v0, u1, v1, u2, v2, ...]
         let has_normals = !mesh.normals.is_empty();
+        let has_texcoords = !mesh.texcoords.is_empty();
         let vertices: Vec<Vertex> = mesh
             .positions
+            // chunks_exact(3) yields [x, y, z] slices for each vertex
             .chunks_exact(3)
+            // enumerate gives (vertex_index, position_slice)
             .enumerate()
             .map(|(i, p)| {
+                // Normals have 3 components, so vertex i starts at i * 3
                 let normal = if has_normals {
                     let n = &mesh.normals[i * 3..i * 3 + 3];
                     Vec3::new(n[0], n[1], n[2])
                 } else {
                     Vec3::ZERO
                 };
+
+                // Texcoords have 2 components (u, v), so vertex i starts at i * 2
+                let texel = if has_texcoords {
+                    let t = &mesh.texcoords[i * 2..i * 2 + 2];
+                    Vec2::new(t[0], t[1])
+                } else {
+                    Vec2::ZERO
+                };
+
                 Vertex {
                     position: Vec3::new(p[0], p[1], p[2]),
                     normal,
+                    texel,
                 }
             })
             .collect();
