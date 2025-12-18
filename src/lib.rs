@@ -16,6 +16,7 @@
 // Public API - exposed to library consumers
 pub mod colors;
 pub mod engine;
+pub mod light;
 pub mod math;
 pub mod window;
 

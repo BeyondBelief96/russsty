@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build Commands
 
+### macOS
+
 ```bash
 # Build the project (requires SDL2 library path on macOS)
 LIBRARY_PATH="/opt/homebrew/opt/sdl2/lib:$LIBRARY_PATH" cargo build
@@ -21,9 +23,35 @@ cargo test test_name
 cargo check
 ```
 
+### Windows
+
+1. Download SDL2 development libraries from https://github.com/libsdl-org/SDL/releases
+   - Get the `SDL2-devel-X.XX.X-VC.zip` file (for MSVC) or `SDL2-devel-X.XX.X-mingw.zip` (for GNU toolchain)
+
+2. For MSVC toolchain:
+   - Extract the zip file
+   - Copy `SDL2.lib` from `lib\x64\` to your Rust lib directory (e.g., `C:\Users\<username>\.rustup\toolchains\stable-x86_64-pc-windows-msvc\lib\rustlib\x86_64-pc-windows-msvc\lib\`)
+   - Copy `SDL2.dll` from `lib\x64\` to the project root (or add it to your PATH)
+
+3. For GNU toolchain (MinGW):
+   - Extract the zip file
+   - Copy all `.a` files from `lib\x64\` to your Rust lib directory
+   - Copy `SDL2.dll` to the project root
+
+4. Build and run:
+   ```cmd
+   cargo build
+   cargo run
+   ```
+
+**Alternative (bundled):** Add `features = ["bundled"]` to the sdl2 dependency in `Cargo.toml`. This compiles SDL2 from source but requires CMake installed.
+
 ## Dependencies
 
-- **SDL2**: Install via `brew install sdl2` on macOS. The `sdl2` Rust crate (v0.38.0) provides bindings.
+- **SDL2**:
+  - macOS: Install via `brew install sdl2`
+  - Windows: Download from https://github.com/libsdl-org/SDL/releases (see build instructions above)
+  - The `sdl2` Rust crate (v0.38.0) provides bindings.
 - **tobj**: OBJ file loader for mesh import.
 - **approx**: Floating-point comparison utilities.
 

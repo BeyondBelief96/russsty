@@ -5,6 +5,7 @@
 //! rasterization.
 
 use crate::colors;
+use crate::light::DirectionalLight;
 use crate::math::mat4::Mat4;
 use crate::math::vec3::Vec3;
 use crate::mesh::{LoadError, Mesh, CUBE_FACES, CUBE_VERTICES};
@@ -37,6 +38,7 @@ pub struct Engine {
     camera_position: Vec3,
     projection_matrix: Mat4,
     render_mode: RenderMode,
+    light: DirectionalLight,
     pub backface_culling: bool,
     pub draw_grid: bool,
 }
@@ -55,6 +57,7 @@ impl Engine {
             camera_position: Vec3::new(0.0, 0.0, -5.0),
             projection_matrix,
             render_mode: RenderMode::default(),
+            light: DirectionalLight::new(Vec3::new(0.0, 0.0, 1.0)),
             backface_culling: true,
             draw_grid: true,
         }
@@ -105,6 +108,14 @@ impl Engine {
         self.camera_position
     }
 
+    pub fn set_light_direction(&mut self, direction: Vec3) {
+        self.light = DirectionalLight::new(direction);
+    }
+
+    pub fn light_direction(&self) -> Vec3 {
+        self.light.direction
+    }
+
     pub fn mesh_mut(&mut self) -> &mut Mesh {
         &mut self.mesh
     }
@@ -153,21 +164,26 @@ impl Engine {
                 transformed_vertices.push(transformed_vertex);
             }
 
+            // Calculate face normal (needed for both backface culling and lighting)
+            let vec_ab = transformed_vertices[1] - transformed_vertices[0];
+            let vec_ac = transformed_vertices[2] - transformed_vertices[0];
+            let normal = vec_ab.cross(vec_ac);
+
             // No camera/view space transformation yet, however, we can consider ourselves in camera space at this point.
             // Apply backface culling
             if backface_culling {
-                let vec_ab = transformed_vertices[1] - transformed_vertices[0];
-                let vec_ac = transformed_vertices[2] - transformed_vertices[0];
-
-                // This normal is not normalized, but we only care about its direction.
-                let normal = vec_ab.cross(vec_ac);
-
                 // In view space, camera is at origin. Vector from vertex to camera is just -vertex.
                 let camera_ray = -transformed_vertices[0];
                 if normal.dot(camera_ray) < 0.0 {
                     continue;
                 }
             }
+
+            // Calculate flat shading based on face normal and light direction
+            let face_normal = normal.normalize();
+            let diffuse = self.light.intensity(face_normal);
+            let total_intensity = (diffuse + self.light.ambient_intensity).min(1.0);
+            let final_color = colors::modulate(colors::FILL, total_intensity);
 
             let mut projected_vertices = Vec::new();
             for vertex in &transformed_vertices {
@@ -202,7 +218,7 @@ impl Engine {
                         projected_vertices[1],
                         projected_vertices[2],
                     ],
-                    colors::FILL,
+                    final_color,
                     avg_depth,
                 ));
             }

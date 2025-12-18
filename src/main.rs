@@ -18,7 +18,7 @@ fn main() -> Result<(), String> {
     let mut engine = Engine::new(window.width(), window.height());
 
     engine
-        .load_mesh("assets/cube.obj")
+        .load_mesh("assets/bunny.obj")
         .map_err(|e| e.to_string())?;
 
     let mut frame_limiter = FrameLimiter::new(&window);
