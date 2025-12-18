@@ -17,7 +17,7 @@
 //! - Texture sampling
 //! - Final color computation
 
-use crate::colors::{modulate, pack_color, unpack_color};
+use crate::colors::{pack_color, unpack_color};
 use crate::prelude::Vec2;
 use crate::texture::Texture;
 
@@ -166,9 +166,9 @@ impl<'a> TextureModulateShader<'a> {
         (u, v)
     }
 
-    /// Compute interpolated lighting intensity as average of RGB
+    /// Interpolate lighting color using barycentric weights (per-channel, like Gouraud)
     #[inline]
-    fn interpolate_intensity(&self, lambda: [f32; 3]) -> f32 {
+    fn interpolate_lighting(&self, lambda: [f32; 3]) -> (f32, f32, f32) {
         let r = lambda[0] * self.colors[0].0
             + lambda[1] * self.colors[1].0
             + lambda[2] * self.colors[2].0;
@@ -178,7 +178,7 @@ impl<'a> TextureModulateShader<'a> {
         let b = lambda[0] * self.colors[0].2
             + lambda[1] * self.colors[1].2
             + lambda[2] * self.colors[2].2;
-        (r + g + b) / 3.0
+        (r, g, b)
     }
 }
 
@@ -187,7 +187,8 @@ impl PixelShader for TextureModulateShader<'_> {
     fn shade(&self, lambda: [f32; 3]) -> u32 {
         let (u, v) = self.interpolate_uv(lambda);
         let tex_color = self.texture.sample(u, v);
-        let intensity = self.interpolate_intensity(lambda);
-        modulate(tex_color, intensity)
+        let (light_r, light_g, light_b) = self.interpolate_lighting(lambda);
+        let (tex_r, tex_g, tex_b) = unpack_color(tex_color);
+        pack_color(tex_r * light_r, tex_g * light_g, tex_b * light_b, 1.0)
     }
 }
