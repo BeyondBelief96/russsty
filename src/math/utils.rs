@@ -12,6 +12,15 @@ pub fn edge_function(a: Vec2, b: Vec2, p: Vec2) -> f32 {
     (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
 }
 
+/// Compute the signed area (times 2) of triangle (v0, v1, v2).
+///
+/// This is equivalent to the edge function evaluated at v2 relative to edge v0->v1.
+/// Used for normalizing barycentric coordinates.
+#[inline]
+pub fn triangle_area(v0: Vec2, v1: Vec2, v2: Vec2) -> f32 {
+    edge_function(v0, v1, v2)
+}
+
 /// Compute barycentric coordinates for point p within triangle (v0, v1, v2).
 ///
 /// Returns (lambda0, lambda1, lambda2) where each lambda is the weight

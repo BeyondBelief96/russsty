@@ -67,13 +67,28 @@
 //! - Foley, van Dam et al., "Computer Graphics: Principles and Practice"
 //! - Abrash, Michael, "Graphics Programming Black Book"
 
+use super::shader::{FlatShader, GouraudShader, PixelShader, TextureModulateShader, TextureShader};
 use super::{Rasterizer, Triangle};
-use crate::colors::{lerp_color, pack_color, unpack_color};
 use crate::engine::TextureMode;
+use crate::math::utils::{edge_function, triangle_area};
+use crate::math::vec2::Vec2;
 use crate::math::vec3::Vec3;
 use crate::render::framebuffer::FrameBuffer;
 use crate::texture::Texture;
 use crate::ShadingMode;
+
+/// Compute barycentric coordinates for point p in triangle (v0, v1, v2).
+///
+/// Uses precomputed inverse area for efficiency when rasterizing many pixels.
+/// Returns [λ0, λ1, λ2] where each λ represents the weight of the
+/// corresponding vertex. These sum to 1.0 for points inside the triangle.
+#[inline]
+fn barycentric(v0: Vec2, v1: Vec2, v2: Vec2, p: Vec2, inv_area: f32) -> [f32; 3] {
+    let w0 = edge_function(v1, v2, p);
+    let w1 = edge_function(v2, v0, p);
+    let w2 = edge_function(v0, v1, p);
+    [w0 * inv_area, w1 * inv_area, w2 * inv_area]
+}
 
 /// Scanline-based triangle rasterizer.
 ///
@@ -121,277 +136,178 @@ impl ScanlineRasterizer {
         }
     }
 
-    /// Sorts vertices by Y coordinate while keeping colors synchronized.
-    ///
-    /// When performing Gouraud shading, vertex colors must be reordered alongside
-    /// their corresponding vertices to maintain correct attribute mapping.
-    ///
-    /// # Arguments
-    ///
-    /// * `v0`, `v1`, `v2` - Mutable references to vertices
-    /// * `c0`, `c1`, `c2` - Mutable references to corresponding RGB colors
-    fn sort_vertices_with_colors(
-        v0: &mut Vec3,
-        v1: &mut Vec3,
-        v2: &mut Vec3,
-        c0: &mut (f32, f32, f32),
-        c1: &mut (f32, f32, f32),
-        c2: &mut (f32, f32, f32),
-    ) {
-        if v1.y < v0.y {
-            std::mem::swap(v0, v1);
-            std::mem::swap(c0, c1);
-        }
-        if v2.y < v1.y {
-            std::mem::swap(v1, v2);
-            std::mem::swap(c1, c2);
-        }
-        if v1.y < v0.y {
-            std::mem::swap(v0, v1);
-            std::mem::swap(c0, c1);
-        }
-    }
+    // =========================================================================
+    // Shader-based rasterization methods
+    // =========================================================================
 
-    /// Fills a flat-bottom triangle with Gouraud (smooth) shading.
+    /// Rasterize a triangle using the provided pixel shader.
     ///
-    /// A flat-bottom triangle has its top vertex (v0) above two bottom vertices
-    /// (v1, v2) that share the same Y coordinate.
-    ///
-    /// ```text
-    ///        v0 (top)
-    ///        /\
-    ///       /  \
-    ///      /    \
-    ///     /______\
-    ///   v1        v2  (same Y)
-    /// ```
-    ///
-    /// # Algorithm
-    ///
-    /// 1. Compute inverse slopes for both edges from v0
-    /// 2. For each scanline from top to bottom:
-    ///    - Calculate X positions on left and right edges
-    ///    - Interpolate colors along both edges using Y progress (t = dy/height)
-    ///    - Fill pixels between edges, interpolating color using X progress
+    /// This method combines scanline traversal (for efficiency) with barycentric
+    /// coordinate computation (for correct attribute interpolation). The key insight
+    /// is that we sort vertices for scanline traversal but compute barycentrics
+    /// using the original vertex order.
     ///
     /// # Arguments
-    ///
-    /// * `v0` - Top vertex
-    /// * `v1`, `v2` - Bottom vertices (must have same Y coordinate)
-    /// * `c0`, `c1`, `c2` - RGB colors corresponding to each vertex
-    /// * `buffer` - Framebuffer to write pixels to
-    fn fill_flat_bottom_gouraud(
+    /// * `v0, v1, v2` - Original (unsorted) triangle vertices
+    /// * `buffer` - Framebuffer to write to
+    /// * `shader` - Pixel shader for color computation
+    fn rasterize_with_shader<S: PixelShader>(
         v0: Vec3,
         v1: Vec3,
         v2: Vec3,
-        c0: (f32, f32, f32),
-        c1: (f32, f32, f32),
-        c2: (f32, f32, f32),
         buffer: &mut FrameBuffer,
+        shader: &S,
     ) {
-        let height = v1.y - v0.y;
-        if height.abs() < f32::EPSILON {
-            return; // Degenerate triangle (zero height)
-        }
+        // Convert to Vec2 for barycentric calculations (only x, y matter)
+        let v0_2d = Vec2::new(v0.x, v0.y);
+        let v1_2d = Vec2::new(v1.x, v1.y);
+        let v2_2d = Vec2::new(v2.x, v2.y);
 
-        // Compute inverse slopes (change in X per unit Y)
-        // These tell us how much X changes as we move down one scanline
-        let inv_slope_1 = (v1.x - v0.x) / height; // Slope of edge v0 -> v1
-        let inv_slope_2 = (v2.x - v0.x) / height; // Slope of edge v0 -> v2
-
-        // Determine scanline range (use ceil/floor for proper pixel coverage)
-        let y_start = v0.y.ceil() as i32;
-        let y_end = v1.y.floor() as i32;
-
-        for y in y_start..=y_end {
-            // Calculate vertical progress through the triangle (0 at top, 1 at bottom)
-            let dy = y as f32 - v0.y;
-            let t = dy / height;
-
-            // Calculate X positions on each edge at this scanline
-            let x1 = v0.x + inv_slope_1 * dy;
-            let x2 = v0.x + inv_slope_2 * dy;
-
-            // Interpolate colors along edges using vertical progress
-            let color1 = lerp_color(c0, c1, t); // Color on edge v0 -> v1
-            let color2 = lerp_color(c0, c2, t); // Color on edge v0 -> v2
-
-            // Determine which edge is left vs right (may vary per triangle)
-            let (x_left, x_right, c_left, c_right) = if x1 < x2 {
-                (x1, x2, color1, color2)
-            } else {
-                (x2, x1, color2, color1)
-            };
-
-            // Fill pixels across the scanline
-            let x_start = x_left.ceil() as i32;
-            let x_end = x_right.floor() as i32;
-            let span = x_right - x_left;
-
-            for x in x_start..=x_end {
-                // Calculate horizontal progress across the scanline (0 at left, 1 at right)
-                let tx = if span.abs() < f32::EPSILON {
-                    0.0
-                } else {
-                    (x as f32 - x_left) / span
-                };
-
-                // Interpolate color horizontally between left and right edge colors
-                let color = lerp_color(c_left, c_right, tx);
-                buffer.set_pixel(x, y, pack_color(color.0, color.1, color.2, 1.0));
-            }
-        }
-    }
-
-    /// Fills a flat-top triangle with Gouraud (smooth) shading.
-    ///
-    /// A flat-top triangle has two top vertices (v0, v1) sharing the same Y
-    /// coordinate, above a single bottom vertex (v2).
-    ///
-    /// ```text
-    ///   v0________v1  (same Y)
-    ///     \      /
-    ///      \    /
-    ///       \  /
-    ///        \/
-    ///        v2 (bottom)
-    /// ```
-    ///
-    /// # Algorithm
-    ///
-    /// 1. Compute inverse slopes for edges from each top vertex to bottom
-    /// 2. For each scanline from top to bottom:
-    ///    - Calculate X positions on left and right edges
-    ///    - Interpolate colors along both edges using Y progress
-    ///    - Fill pixels between edges, interpolating color using X progress
-    ///
-    /// # Arguments
-    ///
-    /// * `v0`, `v1` - Top vertices (must have same Y coordinate)
-    /// * `v2` - Bottom vertex
-    /// * `c0`, `c1`, `c2` - RGB colors corresponding to each vertex
-    /// * `buffer` - Framebuffer to write pixels to
-    fn fill_flat_top_gouraud(
-        v0: Vec3,
-        v1: Vec3,
-        v2: Vec3,
-        c0: (f32, f32, f32),
-        c1: (f32, f32, f32),
-        c2: (f32, f32, f32),
-        buffer: &mut FrameBuffer,
-    ) {
-        let height = v2.y - v0.y;
-        if height.abs() < f32::EPSILON {
+        // Compute area for barycentric normalization
+        let area = triangle_area(v0_2d, v1_2d, v2_2d);
+        if area.abs() < f32::EPSILON {
             return; // Degenerate triangle
         }
+        let inv_area = 1.0 / area;
 
-        // Compute inverse slopes from top vertices to bottom vertex
-        let inv_slope_1 = (v2.x - v0.x) / height; // Edge v0 -> v2
-        let inv_slope_2 = (v2.x - v1.x) / height; // Edge v1 -> v2
+        // Sort vertices for scanline traversal
+        // IMPORTANT: We sort copies, keeping original v0, v1, v2 for barycentrics
+        let mut sv0 = v0;
+        let mut sv1 = v1;
+        let mut sv2 = v2;
+        Self::sort_vertices(&mut sv0, &mut sv1, &mut sv2);
 
-        let y_start = v0.y.ceil() as i32;
-        let y_end = v2.y.floor() as i32;
+        // Check triangle type and call appropriate fill method
+        if (sv1.y - sv2.y).abs() < f32::EPSILON {
+            // Flat-bottom triangle
+            Self::fill_flat_bottom_with_shader(
+                sv0, sv1, sv2, v0_2d, v1_2d, v2_2d, inv_area, buffer, shader,
+            );
+        } else if (sv0.y - sv1.y).abs() < f32::EPSILON {
+            // Flat-top triangle
+            Self::fill_flat_top_with_shader(
+                sv0, sv1, sv2, v0_2d, v1_2d, v2_2d, inv_area, buffer, shader,
+            );
+        } else {
+            // General triangle - split into flat-bottom + flat-top
+            let t = (sv1.y - sv0.y) / (sv2.y - sv0.y);
+            let split_x = sv0.x + (sv2.x - sv0.x) * t;
+            let split_point = Vec3::new(split_x, sv1.y, 0.0);
+
+            // Fill top half (flat-bottom)
+            Self::fill_flat_bottom_with_shader(
+                sv0,
+                sv1,
+                split_point,
+                v0_2d,
+                v1_2d,
+                v2_2d, // Always use original for barycentrics
+                inv_area,
+                buffer,
+                shader,
+            );
+
+            // Fill bottom half (flat-top)
+            Self::fill_flat_top_with_shader(
+                sv1, split_point, sv2, v0_2d, v1_2d, v2_2d, inv_area, buffer, shader,
+            );
+        }
+    }
+
+    /// Fill a flat-bottom triangle using a pixel shader.
+    ///
+    /// # Arguments
+    /// * `sv0, sv1, sv2` - Sorted vertices for scanline traversal
+    /// * `v0, v1, v2` - Original vertices (Vec2) for barycentric computation
+    /// * `inv_area` - 1/area for barycentric normalization
+    fn fill_flat_bottom_with_shader<S: PixelShader>(
+        sv0: Vec3, // Top vertex (sorted)
+        sv1: Vec3, // Bottom-left (sorted)
+        sv2: Vec3, // Bottom-right (sorted)
+        v0: Vec2,  // Original vertices for barycentrics
+        v1: Vec2,
+        v2: Vec2,
+        inv_area: f32,
+        buffer: &mut FrameBuffer,
+        shader: &S,
+    ) {
+        let height = sv1.y - sv0.y;
+        if height.abs() < f32::EPSILON {
+            return;
+        }
+
+        let inv_slope_1 = (sv1.x - sv0.x) / height;
+        let inv_slope_2 = (sv2.x - sv0.x) / height;
+
+        let y_start = sv0.y.ceil() as i32;
+        let y_end = sv1.y.floor() as i32;
 
         for y in y_start..=y_end {
-            let dy = y as f32 - v0.y;
-            let t = dy / height;
+            let dy = y as f32 - sv0.y;
+            let x1 = sv0.x + inv_slope_1 * dy;
+            let x2 = sv0.x + inv_slope_2 * dy;
 
-            // X positions along each edge
-            let x1 = v0.x + inv_slope_1 * dy;
-            let x2 = v1.x + inv_slope_2 * dy;
-
-            // Interpolate colors along edges (both converging to c2 at bottom)
-            let color1 = lerp_color(c0, c2, t);
-            let color2 = lerp_color(c1, c2, t);
-
-            let (x_left, x_right, c_left, c_right) = if x1 < x2 {
-                (x1, x2, color1, color2)
-            } else {
-                (x2, x1, color2, color1)
-            };
+            let (x_left, x_right) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
 
             let x_start = x_left.ceil() as i32;
             let x_end = x_right.floor() as i32;
-            let span = x_right - x_left;
 
             for x in x_start..=x_end {
-                let tx = if span.abs() < f32::EPSILON {
-                    0.0
-                } else {
-                    (x as f32 - x_left) / span
-                };
-                let color = lerp_color(c_left, c_right, tx);
-                buffer.set_pixel(x, y, pack_color(color.0, color.1, color.2, 1.0));
+                // Compute barycentric coords using ORIGINAL vertices
+                let p = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
+                let lambda = barycentric(v0, v1, v2, p, inv_area);
+
+                let color = shader.shade(lambda);
+                buffer.set_pixel(x, y, color);
             }
         }
     }
 
-    /// Fills a flat-bottom triangle with a solid color (no interpolation).
-    ///
-    /// This is the optimized path for flat shading where all pixels receive
-    /// the same color. Uses `fill_scanline` for efficient horizontal fills.
+    /// Fill a flat-top triangle using a pixel shader.
     ///
     /// # Arguments
-    ///
-    /// * `v0` - Top vertex
-    /// * `v1`, `v2` - Bottom vertices (same Y coordinate)
-    /// * `buffer` - Framebuffer to write to
-    /// * `color` - Solid color for all pixels (ARGB format)
-    fn fill_flat_bottom_solid(v0: Vec3, v1: Vec3, v2: Vec3, buffer: &mut FrameBuffer, color: u32) {
-        let height = v1.y - v0.y;
+    /// * `sv0, sv1, sv2` - Sorted vertices for scanline traversal
+    /// * `v0, v1, v2` - Original vertices (Vec2) for barycentric computation
+    /// * `inv_area` - 1/area for barycentric normalization
+    fn fill_flat_top_with_shader<S: PixelShader>(
+        sv0: Vec3, // Top-left (sorted)
+        sv1: Vec3, // Top-right (sorted)
+        sv2: Vec3, // Bottom vertex (sorted)
+        v0: Vec2,  // Original vertices for barycentrics
+        v1: Vec2,
+        v2: Vec2,
+        inv_area: f32,
+        buffer: &mut FrameBuffer,
+        shader: &S,
+    ) {
+        let height = sv2.y - sv0.y;
         if height.abs() < f32::EPSILON {
             return;
         }
 
-        let inv_slope_1 = (v1.x - v0.x) / height;
-        let inv_slope_2 = (v2.x - v0.x) / height;
+        let inv_slope_1 = (sv2.x - sv0.x) / height;
+        let inv_slope_2 = (sv2.x - sv1.x) / height;
 
-        let y_start = v0.y.ceil() as i32;
-        let y_end = v1.y.floor() as i32;
-
-        for y in y_start..=y_end {
-            let dy = y as f32 - v0.y;
-            let x1 = v0.x + inv_slope_1 * dy;
-            let x2 = v0.x + inv_slope_2 * dy;
-
-            // Use min/max to handle either edge being left or right
-            let x_left = x1.min(x2).ceil() as i32;
-            let x_right = x1.max(x2).floor() as i32;
-
-            // fill_scanline is optimized for horizontal runs of solid color
-            buffer.fill_scanline(y, x_left, x_right, color);
-        }
-    }
-
-    /// Fills a flat-top triangle with a solid color (no interpolation).
-    ///
-    /// # Arguments
-    ///
-    /// * `v0`, `v1` - Top vertices (same Y coordinate)
-    /// * `v2` - Bottom vertex
-    /// * `buffer` - Framebuffer to write to
-    /// * `color` - Solid color for all pixels (ARGB format)
-    fn fill_flat_top_solid(v0: Vec3, v1: Vec3, v2: Vec3, buffer: &mut FrameBuffer, color: u32) {
-        let height = v2.y - v0.y;
-        if height.abs() < f32::EPSILON {
-            return;
-        }
-
-        let inv_slope_1 = (v2.x - v0.x) / height;
-        let inv_slope_2 = (v2.x - v1.x) / height;
-
-        let y_start = v0.y.ceil() as i32;
-        let y_end = v2.y.floor() as i32;
+        let y_start = sv0.y.ceil() as i32;
+        let y_end = sv2.y.floor() as i32;
 
         for y in y_start..=y_end {
-            let dy = y as f32 - v0.y;
-            let x1 = v0.x + inv_slope_1 * dy;
-            let x2 = v1.x + inv_slope_2 * dy;
+            let dy = y as f32 - sv0.y;
+            let x1 = sv0.x + inv_slope_1 * dy;
+            let x2 = sv1.x + inv_slope_2 * dy;
 
-            let x_left = x1.min(x2).ceil() as i32;
-            let x_right = x1.max(x2).floor() as i32;
+            let (x_left, x_right) = if x1 < x2 { (x1, x2) } else { (x2, x1) };
 
-            buffer.fill_scanline(y, x_left, x_right, color);
+            let x_start = x_left.ceil() as i32;
+            let x_end = x_right.floor() as i32;
+
+            for x in x_start..=x_end {
+                let p = Vec2::new(x as f32 + 0.5, y as f32 + 0.5);
+                let lambda = barycentric(v0, v1, v2, p, inv_area);
+
+                let color = shader.shade(lambda);
+                buffer.set_pixel(x, y, color);
+            }
         }
     }
 }
@@ -403,34 +319,26 @@ impl Default for ScanlineRasterizer {
 }
 
 impl Rasterizer for ScanlineRasterizer {
-    /// Fills a triangle using the scanline algorithm.
+    /// Fills a triangle using the scanline algorithm with pixel shaders.
     ///
-    /// # Algorithm Steps
+    /// This implementation uses the PixelShader trait to handle different shading
+    /// and texturing modes. The scanline traversal is combined with barycentric
+    /// coordinate computation for correct attribute interpolation.
     ///
-    /// 1. **Sort vertices** by Y coordinate (top to bottom)
-    ///    - For Gouraud shading, also sort corresponding vertex colors
+    /// # Shader Selection
     ///
-    /// 2. **Classify triangle shape**:
-    ///    - If `v1.y == v2.y`: Already flat-bottom, no split needed
-    ///    - If `v0.y == v1.y`: Already flat-top, no split needed
-    ///    - Otherwise: General triangle, needs splitting
-    ///
-    /// 3. **Split general triangles** at the middle vertex's Y level:
-    ///    ```text
-    ///    split_point.x = v0.x + (v2.x - v0.x) * t
-    ///    where t = (v1.y - v0.y) / (v2.y - v0.y)
-    ///    ```
-    ///    The split point lies on edge v0->v2 at the same Y as v1.
-    ///
-    /// 4. **Rasterize sub-triangles**:
-    ///    - Flat-bottom: v0 (top) to v1 and split_point (bottom)
-    ///    - Flat-top: v1 and split_point (top) to v2 (bottom)
+    /// The shader is selected based on texture mode and shading mode:
+    /// - Texture Replace: TextureShader (texture color only)
+    /// - Texture Modulate: TextureModulateShader (texture * lighting)
+    /// - Gouraud: GouraudShader (interpolated vertex colors)
+    /// - Flat/None: FlatShader (single color)
     ///
     /// # Arguments
     ///
-    /// * `triangle` - Triangle to rasterize with vertices, colors, and shading mode
+    /// * `triangle` - Triangle to rasterize with vertices, colors, UVs, and modes
     /// * `buffer` - Framebuffer to write pixels to
-    /// * `color` - Flat color to use (for Flat/None shading modes)
+    /// * `color` - Flat color to use (for Flat/None shading modes without texture)
+    /// * `texture` - Optional texture for texture mapping modes
     fn fill_triangle(
         &self,
         triangle: &Triangle,
@@ -438,82 +346,32 @@ impl Rasterizer for ScanlineRasterizer {
         color: u32,
         texture: Option<&Texture>,
     ) {
-        let mut v0 = triangle.points[0];
-        let mut v1 = triangle.points[1];
-        let mut v2 = triangle.points[2];
+        let [v0, v1, v2] = triangle.points;
 
-        match triangle.shading_mode {
-            ShadingMode::Gouraud => {
-                // ─────────────────────────────────────────────────────────────
-                // Gouraud shading: interpolate colors across the triangle
-                // ─────────────────────────────────────────────────────────────
-
-                // Unpack vertex colors and sort alongside vertices
-                let mut c0 = unpack_color(triangle.vertex_colors[0]);
-                let mut c1 = unpack_color(triangle.vertex_colors[1]);
-                let mut c2 = unpack_color(triangle.vertex_colors[2]);
-
-                Self::sort_vertices_with_colors(
-                    &mut v0, &mut v1, &mut v2, &mut c0, &mut c1, &mut c2,
+        // Select shader based on texture_mode and shading_mode
+        match (triangle.texture_mode, texture) {
+            (TextureMode::Replace, Some(tex)) => {
+                let shader = TextureShader::new(tex, triangle.texture_coords);
+                Self::rasterize_with_shader(v0, v1, v2, buffer, &shader);
+            }
+            (TextureMode::Modulate, Some(tex)) => {
+                let shader = TextureModulateShader::new(
+                    tex,
+                    triangle.texture_coords,
+                    triangle.vertex_colors,
                 );
-
-                // Case 1: Already a flat-bottom triangle
-                if (v1.y - v2.y).abs() < f32::EPSILON {
-                    Self::fill_flat_bottom_gouraud(v0, v1, v2, c0, c1, c2, buffer);
-                    return;
-                }
-
-                // Case 2: Already a flat-top triangle
-                if (v0.y - v1.y).abs() < f32::EPSILON {
-                    Self::fill_flat_top_gouraud(v0, v1, v2, c0, c1, c2, buffer);
-                    return;
-                }
-
-                // Case 3: General triangle - split into flat-bottom + flat-top
-                // Calculate the parameter t for the split point on edge v0->v2
-                let t = (v1.y - v0.y) / (v2.y - v0.y);
-
-                // Split point lies on edge v0->v2 at the same Y as v1
-                let split_x = v0.x + (v2.x - v0.x) * t;
-                let split_point = Vec3::new(split_x, v1.y, 0.0);
-
-                // Interpolate color at the split point along edge v0->v2
-                let split_color = lerp_color(c0, c2, t);
-
-                // Fill top half (flat-bottom): v0 at apex, v1 and split at base
-                Self::fill_flat_bottom_gouraud(v0, v1, split_point, c0, c1, split_color, buffer);
-
-                // Fill bottom half (flat-top): v1 and split at top, v2 at apex
-                Self::fill_flat_top_gouraud(v1, split_point, v2, c1, split_color, c2, buffer);
+                Self::rasterize_with_shader(v0, v1, v2, buffer, &shader);
             }
-
-            ShadingMode::Flat | ShadingMode::None => {
-                // ─────────────────────────────────────────────────────────────
-                // Flat shading: single color for entire triangle
-                // ─────────────────────────────────────────────────────────────
-
-                Self::sort_vertices(&mut v0, &mut v1, &mut v2);
-
-                // Case 1: Already flat-bottom
-                if (v1.y - v2.y).abs() < f32::EPSILON {
-                    Self::fill_flat_bottom_solid(v0, v1, v2, buffer, color);
-                    return;
+            _ => match triangle.shading_mode {
+                ShadingMode::Gouraud => {
+                    let shader = GouraudShader::new(triangle.vertex_colors);
+                    Self::rasterize_with_shader(v0, v1, v2, buffer, &shader);
                 }
-
-                // Case 2: Already flat-top
-                if (v0.y - v1.y).abs() < f32::EPSILON {
-                    Self::fill_flat_top_solid(v0, v1, v2, buffer, color);
-                    return;
+                ShadingMode::Flat | ShadingMode::None => {
+                    let shader = FlatShader::new(color);
+                    Self::rasterize_with_shader(v0, v1, v2, buffer, &shader);
                 }
-
-                // Case 3: General triangle - split at v1's Y level
-                let t = (v1.y - v0.y) / (v2.y - v0.y);
-                let split_x = v0.x + (v2.x - v0.x) * t;
-                let split_point = Vec3::new(split_x, v1.y, 0.0);
-
-                Self::fill_flat_bottom_solid(v0, v1, split_point, buffer, color);
-                Self::fill_flat_top_solid(v1, split_point, v2, buffer, color);
-            }
+            },
         }
     }
 }
