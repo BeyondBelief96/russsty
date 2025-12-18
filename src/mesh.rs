@@ -183,15 +183,4 @@ impl Mesh {
     pub(crate) fn faces(&self) -> &[Face] {
         &self.faces
     }
-
-    /// Get a vertex for a specific face and vertex position (0, 1, or 2)
-    pub(crate) fn get_face_vertex(&self, face_idx: usize, vertex_pos: usize) -> &Vertex {
-        let idx = match vertex_pos {
-            0 => self.faces[face_idx].a,
-            1 => self.faces[face_idx].b,
-            2 => self.faces[face_idx].c,
-            _ => panic!("vertex_pos must be 0, 1, or 2"),
-        };
-        &self.vertices[idx as usize]
-    }
 }

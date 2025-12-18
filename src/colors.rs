@@ -48,3 +48,29 @@ pub fn pack_color(r: f32, g: f32, b: f32, a: f32) -> u32 {
     let b = (b * 255.0).round() as u32;
     (a << 24) | (r << 16) | (g << 8) | b
 }
+
+/// Linearly interpolates between two RGB colors.
+///
+/// # Formula
+///
+/// ```text
+/// result = c1 + (c2 - c1) * t = c1 * (1 - t) + c2 * t
+/// ```
+///
+/// # Arguments
+///
+/// * `c1` - Start color (when t = 0)
+/// * `c2` - End color (when t = 1)
+/// * `t` - Interpolation factor in range [0, 1]
+///
+/// # Returns
+///
+/// Interpolated RGB color as (r, g, b) tuple with components in [0, 1]
+#[inline]
+pub fn lerp_color(c1: (f32, f32, f32), c2: (f32, f32, f32), t: f32) -> (f32, f32, f32) {
+    (
+        c1.0 + (c2.0 - c1.0) * t,
+        c1.1 + (c2.1 - c1.1) * t,
+        c1.2 + (c2.2 - c1.2) * t,
+    )
+}
