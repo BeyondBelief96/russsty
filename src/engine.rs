@@ -233,14 +233,12 @@ impl Engine {
                     // Gouraud shading - per-vertex lighting
                     let mut vert_colors = [0u32; 3];
                     for i in 0..3 {
-                        // Transform vertex normal to world space
                         let world_normal = (normal_matrix * face_vertices[i].normal).normalize();
                         let diffuse = self.light.intensity(world_normal);
                         let intensity = (diffuse + self.light.ambient_intensity).min(1.0);
                         vert_colors[i] = colors::modulate(colors::FILL, intensity);
                     }
-                    // Use average color for wireframe/flat_color fallback
-                    let avg_color = vert_colors[0]; // Could average, but first vertex is fine
+                    let avg_color = vert_colors[0];
                     (avg_color, vert_colors)
                 }
             };
@@ -282,6 +280,7 @@ impl Engine {
                     flat_color,
                     vertex_colors,
                     avg_depth,
+                    shading_mode,
                 ));
             }
         }

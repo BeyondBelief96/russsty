@@ -6,11 +6,12 @@ use russsty::ShadingMode;
 
 fn format_window_title(fps: f64, engine: &Engine) -> String {
     format!(
-        "Russsty | FPS: {:.1} | {} | Cull: {} | {:?}",
+        "Russsty | FPS: {:.1} | {} | Cull: {} | {:?} | {:?}",
         fps,
         engine.rasterizer(),
         if engine.backface_culling { "ON" } else { "OFF" },
-        engine.render_mode()
+        engine.render_mode(),
+        engine.shading_mode(),
     )
 }
 
@@ -49,9 +50,9 @@ fn main() -> Result<(), String> {
                 }
                 Key::F => {
                     let next = match engine.shading_mode() {
-                        ShadingMode::None => ShadingMode::None,
+                        ShadingMode::None => ShadingMode::Flat,
                         ShadingMode::Flat => ShadingMode::Gouraud,
-                        ShadingMode::Gouraud => ShadingMode::Flat,
+                        ShadingMode::Gouraud => ShadingMode::None,
                     };
                     engine.set_shading_mode(next);
                 }
@@ -64,9 +65,9 @@ fn main() -> Result<(), String> {
         let mesh = engine.mesh_mut();
         mesh.translation_mut().z = 5.0;
 
-        mesh.rotation_mut().x += 0.01;
-        mesh.rotation_mut().y += 0.01;
-        mesh.rotation_mut().z += 0.01;
+        // mesh.rotation_mut().x += 0.01;
+        //mesh.rotation_mut().y = (45.0 as f32).to_radians();
+        // mesh.rotation_mut().z += 0.01;
 
         engine.update();
         engine.render();

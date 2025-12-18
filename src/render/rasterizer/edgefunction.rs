@@ -1,8 +1,10 @@
 //! Edge function-based triangle rasterization.
 
 use super::{Rasterizer, Triangle};
+use crate::colors::{pack_color, unpack_color};
 use crate::math::vec3::Vec3;
 use crate::render::framebuffer::FrameBuffer;
+use crate::ShadingMode;
 
 /// Triangle rasterizer using the edge function algorithm.
 ///
@@ -59,27 +61,71 @@ impl Rasterizer for EdgeFunctionRasterizer {
             return;
         }
 
-        // Iterate over all pixels in the bounding box
-        for y in min_y..=max_y {
-            for x in min_x..=max_x {
-                // Sample at pixel center
-                let p = Vec3::new(x as f32 + 0.5, y as f32 + 0.5, 0.0);
+        match triangle.shading_mode {
+            ShadingMode::Gouraud => {
+                let inv_area = 1.0 / area;
 
-                // Compute edge functions for all three edges
-                let w0 = Self::edge_function(v1, v2, p);
-                let w1 = Self::edge_function(v2, v0, p);
-                let w2 = Self::edge_function(v0, v1, p);
+                let colors: [(f32, f32, f32); 3] = [
+                    unpack_color(triangle.vertex_colors[0]),
+                    unpack_color(triangle.vertex_colors[1]),
+                    unpack_color(triangle.vertex_colors[2]),
+                ];
 
-                // Point is inside if all edge functions have the same sign as the triangle area
-                // This handles both CW and CCW wound triangles
-                let inside = if area > 0.0 {
-                    w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0
-                } else {
-                    w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0
-                };
+                for y in min_y..=max_y {
+                    for x in min_x..=max_x {
+                        let p = Vec3::new(x as f32 + 0.5, y as f32 + 0.5, 0.0);
 
-                if inside {
-                    buffer.set_pixel(x, y, color);
+                        let w0 = Self::edge_function(v1, v2, p);
+                        let w1 = Self::edge_function(v2, v0, p);
+                        let w2 = Self::edge_function(v0, v1, p);
+
+                        let inside = if area > 0.0 {
+                            w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0
+                        } else {
+                            w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0
+                        };
+
+                        if inside {
+                            // Barycentric coordinates
+                            let lambda0 = w0 * inv_area;
+                            let lambda1 = w1 * inv_area;
+                            let lambda2 = w2 * inv_area;
+
+                            // Interpolate RGB components
+                            let r = lambda0 * colors[0].0
+                                + lambda1 * colors[1].0
+                                + lambda2 * colors[2].0;
+                            let g = lambda0 * colors[0].1
+                                + lambda1 * colors[1].1
+                                + lambda2 * colors[2].1;
+                            let b = lambda0 * colors[0].2
+                                + lambda1 * colors[1].2
+                                + lambda2 * colors[2].2;
+
+                            buffer.set_pixel(x, y, pack_color(r, g, b, 1.0));
+                        }
+                    }
+                }
+            }
+            ShadingMode::Flat | ShadingMode::None => {
+                for y in min_y..=max_y {
+                    for x in min_x..=max_x {
+                        let p = Vec3::new(x as f32 + 0.5, y as f32 + 0.5, 0.0);
+
+                        let w0 = Self::edge_function(v1, v2, p);
+                        let w1 = Self::edge_function(v2, v0, p);
+                        let w2 = Self::edge_function(v0, v1, p);
+
+                        let inside = if area > 0.0 {
+                            w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0
+                        } else {
+                            w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0
+                        };
+
+                        if inside {
+                            buffer.set_pixel(x, y, color);
+                        }
+                    }
                 }
             }
         }

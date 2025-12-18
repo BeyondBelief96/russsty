@@ -171,6 +171,7 @@ impl Window {
                         Keycode::C => Some(Key::C),
                         Keycode::G => Some(Key::G),
                         Keycode::R => Some(Key::R),
+                        Keycode::F => Some(Key::F),
                         _ => None,
                     };
                     if let Some(k) = key {
