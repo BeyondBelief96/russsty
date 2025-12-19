@@ -67,15 +67,15 @@ impl<'a> FrameBuffer<'a> {
     ///
     /// # Arguments
     /// * `x`, `y` - Pixel coordinates
-    /// * `depth` - The 1/w value for this pixel (larger = closer)
+    /// * `inv_depth` - The 1/w value for this pixel (larger = closer)
     /// * `color` - The color to write if depth test passes
     #[inline]
-    pub fn set_pixel_with_depth(&mut self, x: i32, y: i32, depth: f32, color: u32) {
+    pub fn set_pixel_with_depth(&mut self, x: i32, y: i32, inv_depth: f32, color: u32) {
         if x >= 0 && x < self.width as i32 && y >= 0 && y < self.height as i32 {
             let idx = (y as u32 * self.width + x as u32) as usize;
             // Depth test: larger 1/w means closer to camera
-            if depth > self.depth_buffer[idx] {
-                self.depth_buffer[idx] = depth;
+            if inv_depth > self.depth_buffer[idx] {
+                self.depth_buffer[idx] = inv_depth;
                 self.color_buffer[idx] = color;
             }
         }

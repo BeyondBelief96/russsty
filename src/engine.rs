@@ -302,7 +302,7 @@ impl Engine {
                 }
             };
 
-            // Project vertices to screen space
+            // Projected vertices will store screen space coordinates where (x, y) represents the pixel coordinates and z represents the original depth value in world space.
             let mut projected_vertices = Vec::new();
             for vertex in &transformed_positions {
                 // After projecting to clip space, w should store the original depth value. We then divide by w to get the normalized device coordinates.
@@ -314,6 +314,7 @@ impl Engine {
                     continue;
                 }
 
+                // NDC coordinates should now be normalized to the range [-1, 1]
                 let ndc_vertex = Vec3::new(
                     clip_space_vertex.x / clip_space_vertex.w,
                     clip_space_vertex.y / clip_space_vertex.w,
