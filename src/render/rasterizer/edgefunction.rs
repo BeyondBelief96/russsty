@@ -144,7 +144,6 @@ impl EdgeFunctionRasterizer {
         // Step 2: Compute signed area (2x triangle area)
         // ─────────────────────────────────────────────────────────────────────
         let area = Self::edge_function(v0, v1, v2);
-        println!("Area: {}", area);
         if area.abs() < f32::EPSILON {
             return; // Degenerate triangle
         }
