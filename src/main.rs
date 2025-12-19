@@ -21,13 +21,11 @@ fn main() -> Result<(), String> {
     let mut window = Window::new("Russsty", WINDOW_WIDTH, WINDOW_HEIGHT)?;
     let mut engine = Engine::new(window.width(), window.height());
 
-    // Load the cube mesh
     engine
-        .load_mesh("assets/crab.obj")
+        .load_mesh("assets/cube.obj")
         .map_err(|e| e.to_string())?;
 
-    // Load the cube texture
-    let texture = Texture::from_file("assets/crab.png").map_err(|e| e.to_string())?;
+    let texture = Texture::from_file("assets/cube.png").map_err(|e| e.to_string())?;
     engine.set_texture(texture);
 
     // Start with texture mode enabled so we can see it

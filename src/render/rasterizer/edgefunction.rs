@@ -19,9 +19,9 @@
 //! E(P) = (P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)
 //! ```
 //!
-//! This is equivalent to the 2D cross product (B - A) × (P - A), which gives:
-//! - Positive value: P is to the left of edge AB (counter-clockwise)
-//! - Negative value: P is to the right of edge AB (clockwise)
+//! This is equivalent to the 2D cross product (P - A) × (B - A), which gives:
+//! - Positive value: P is to the left of edge AB
+//! - Negative value: P is to the right of edge AB
 //! - Zero: P is exactly on the edge
 //!
 //! # Barycentric Coordinates
@@ -46,13 +46,14 @@
 //! - Juan Pineda, "A Parallel Algorithm for Polygon Rasterization" (1988)
 //! - Scratchapixel: <https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation>
 
-use super::shader::{
-    FlatShader, GouraudShader, PixelShader, TextureModulateShader, TextureShader,
-};
+use super::shader::{FlatShader, GouraudShader, PixelShader, TextureModulateShader, TextureShader};
 use super::{Rasterizer, Triangle};
 use crate::engine::TextureMode;
 use crate::math::vec3::Vec3;
 use crate::render::framebuffer::FrameBuffer;
+use crate::render::rasterizer::shader::{
+    PerspectiveCorrectTextureModulateShader, PerspectiveCorrectTextureShader,
+};
 use crate::texture::Texture;
 use crate::ShadingMode;
 
@@ -86,7 +87,7 @@ impl EdgeFunctionRasterizer {
     /// Computes the edge function value for point P relative to edge (A -> B).
     ///
     /// The edge function is the signed area of the parallelogram formed by
-    /// vectors (B - A) and (P - A), computed as their 2D cross product:
+    /// vectors (P - A) and (B - A), computed as their 2D cross product:
     ///
     /// ```text
     /// E(P) = (P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)
@@ -94,8 +95,8 @@ impl EdgeFunctionRasterizer {
     ///
     /// # Returns
     ///
-    /// - Positive: P is to the left of edge AB (counter-clockwise winding)
-    /// - Negative: P is to the right of edge AB (clockwise winding)
+    /// - Positive: P is to the left of edge AB
+    /// - Negative: P is to the right of edge AB
     /// - Zero: P lies exactly on the edge AB
     ///
     /// # Arguments
@@ -215,13 +216,18 @@ impl Rasterizer for EdgeFunctionRasterizer {
         match (triangle.texture_mode, texture) {
             // Textured paths (when texture is available)
             (TextureMode::Replace, Some(tex)) => {
-                let shader = TextureShader::new(tex, triangle.texture_coords);
+                let shader = PerspectiveCorrectTextureShader::new(
+                    tex,
+                    triangle.texture_coords,
+                    triangle.points,
+                );
                 Self::rasterize_with_shader(v0, v1, v2, buffer, &shader);
             }
             (TextureMode::Modulate, Some(tex)) => {
-                let shader = TextureModulateShader::new(
+                let shader = PerspectiveCorrectTextureModulateShader::new(
                     tex,
                     triangle.texture_coords,
+                    triangle.points,
                     triangle.vertex_colors,
                 );
                 Self::rasterize_with_shader(v0, v1, v2, buffer, &shader);

@@ -18,7 +18,7 @@
 //! - Final color computation
 
 use crate::colors::{pack_color, unpack_color};
-use crate::prelude::Vec2;
+use crate::prelude::{Vec2, Vec3};
 use crate::texture::Texture;
 
 /// Trait for per-pixel shading computations.
@@ -188,6 +188,127 @@ impl PixelShader for TextureModulateShader<'_> {
         let (u, v) = self.interpolate_uv(lambda);
         let tex_color = self.texture.sample(u, v);
         let (light_r, light_g, light_b) = self.interpolate_lighting(lambda);
+        let (tex_r, tex_g, tex_b) = unpack_color(tex_color);
+        pack_color(tex_r * light_r, tex_g * light_g, tex_b * light_b, 1.0)
+    }
+}
+
+/// Texture shader with perspective-correct UV interpolation
+pub struct PerspectiveCorrectTextureShader<'a> {
+    texture: &'a Texture,
+    /// Pre-divided: [u₀/w₀, u₁/w₁, u₂/w₂]
+    u_over_w: [f32; 3],
+    /// Pre-divided: [v₀/w₀, v₁/w₁, v₂/w₂]
+    v_over_w: [f32; 3],
+    /// Reciprocal depths: [1/w₀, 1/w₁, 1/w₂]
+    inv_w: [f32; 3],
+}
+
+impl<'a> PerspectiveCorrectTextureShader<'a> {
+    /// Create a perspective-correct texture shader.
+    ///
+    /// # Arguments
+    /// * `texture` - The texture to sample
+    /// * `uvs` - Texture coordinates for each vertex
+    /// * `points` - Screen-space vertices (W stored in z component)
+    pub fn new(texture: &'a Texture, uvs: [Vec2; 3], points: [Vec3; 3]) -> Self {
+        // Extract W from the z component (stored by engine.rs during projection)
+        let w = [points[0].z, points[1].z, points[2].z];
+
+        Self {
+            texture,
+            u_over_w: [uvs[0].x / w[0], uvs[1].x / w[1], uvs[2].x / w[2]],
+            v_over_w: [uvs[0].y / w[0], uvs[1].y / w[1], uvs[2].y / w[2]],
+            inv_w: [1.0 / w[0], 1.0 / w[1], 1.0 / w[2]],
+        }
+    }
+}
+
+impl PixelShader for PerspectiveCorrectTextureShader<'_> {
+    fn shade(&self, lambda: [f32; 3]) -> u32 {
+        // Interpolate u/w, v/w and 1/w linearly
+        let u_over_w = lambda[0] * self.u_over_w[0]
+            + lambda[1] * self.u_over_w[1]
+            + lambda[2] * self.u_over_w[2];
+        let v_over_w = lambda[0] * self.v_over_w[0]
+            + lambda[1] * self.v_over_w[1]
+            + lambda[2] * self.v_over_w[2];
+        let inv_w =
+            lambda[0] * self.inv_w[0] + lambda[1] * self.inv_w[1] + lambda[2] * self.inv_w[2];
+
+        // Recover perspective-correct UVs
+        let u = u_over_w / inv_w;
+        let v = v_over_w / inv_w;
+
+        self.texture.sample(u, v)
+    }
+}
+
+/// Perspective-correct texture + lighting modulation
+pub struct PerspectiveCorrectTextureModulateShader<'a> {
+    texture: &'a Texture,
+    u_over_w: [f32; 3],
+    v_over_w: [f32; 3],
+    inv_w: [f32; 3],
+    colors: [(f32, f32, f32); 3],
+}
+
+impl<'a> PerspectiveCorrectTextureModulateShader<'a> {
+    pub fn new(
+        texture: &'a Texture,
+        uvs: [Vec2; 3],
+        points: [Vec3; 3], // W stored in z component
+        vertex_colors: [u32; 3],
+    ) -> Self {
+        let w = [points[0].z, points[1].z, points[2].z];
+
+        Self {
+            texture,
+            u_over_w: [uvs[0].x / w[0], uvs[1].x / w[1], uvs[2].x / w[2]],
+            v_over_w: [uvs[0].y / w[0], uvs[1].y / w[1], uvs[2].y / w[2]],
+            inv_w: [1.0 / w[0], 1.0 / w[1], 1.0 / w[2]],
+            colors: [
+                unpack_color(vertex_colors[0]),
+                unpack_color(vertex_colors[1]),
+                unpack_color(vertex_colors[2]),
+            ],
+        }
+    }
+}
+
+impl PixelShader for PerspectiveCorrectTextureModulateShader<'_> {
+    #[inline]
+    fn shade(&self, lambda: [f32; 3]) -> u32 {
+        // Perspective-correct UV interpolation
+        let u_over_w = lambda[0] * self.u_over_w[0]
+            + lambda[1] * self.u_over_w[1]
+            + lambda[2] * self.u_over_w[2];
+        let v_over_w = lambda[0] * self.v_over_w[0]
+            + lambda[1] * self.v_over_w[1]
+            + lambda[2] * self.v_over_w[2];
+        let one_over_w =
+            lambda[0] * self.inv_w[0] + lambda[1] * self.inv_w[1] + lambda[2] * self.inv_w[2];
+
+        let u = u_over_w / one_over_w;
+        let v = v_over_w / one_over_w;
+
+        // Sample texture
+        let tex_color = self.texture.sample(u, v);
+
+        // Lighting interpolation (can be affine - less noticeable artifacts)
+        let (light_r, light_g, light_b) = (
+            lambda[0] * self.colors[0].0
+                + lambda[1] * self.colors[1].0
+                + lambda[2] * self.colors[2].0,
+            lambda[0] * self.colors[0].1
+                + lambda[1] * self.colors[1].1
+                + lambda[2] * self.colors[2].1,
+            lambda[0] * self.colors[0].2
+                + lambda[1] * self.colors[1].2
+                + lambda[2] * self.colors[2].2,
+        );
+
+        // Modulate
         let (tex_r, tex_g, tex_b) = unpack_color(tex_color);
         pack_color(tex_r * light_r, tex_g * light_g, tex_b * light_b, 1.0)
     }
