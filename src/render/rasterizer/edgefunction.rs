@@ -87,16 +87,16 @@ impl EdgeFunctionRasterizer {
     /// Computes the edge function value for point P relative to edge (A -> B).
     ///
     /// The edge function is the signed area of the parallelogram formed by
-    /// vectors (P - A) and (B - A), computed as their 2D cross product:
+    /// vectors (B - A) and (P - A), computed as their 2D cross product:
     ///
     /// ```text
-    /// E(P) = (P.x - A.x) * (B.y - A.y) - (P.y - A.y) * (B.x - A.x)
+    /// E(P) = (B.x - A.x) * (P.y - A.y) - (B.y - A.y) * (P.x - A.x)
     /// ```
     ///
     /// # Returns
     ///
-    /// - Positive: P is to the left of edge AB
-    /// - Negative: P is to the right of edge AB
+    /// - Positive: P is to the right of edge AB
+    /// - Negative: P is to the left of edge AB
     /// - Zero: P lies exactly on the edge AB
     ///
     /// # Arguments
@@ -106,7 +106,7 @@ impl EdgeFunctionRasterizer {
     /// * `p` - Point to test against the edge
     #[inline]
     fn edge_function(a: Vec3, b: Vec3, p: Vec3) -> f32 {
-        (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
+        (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
     }
 
     /// Rasterize a triangle using the provided pixel shader.
@@ -144,6 +144,7 @@ impl EdgeFunctionRasterizer {
         // Step 2: Compute signed area (2x triangle area)
         // ─────────────────────────────────────────────────────────────────────
         let area = Self::edge_function(v0, v1, v2);
+        println!("Area: {}", area);
         if area.abs() < f32::EPSILON {
             return; // Degenerate triangle
         }

@@ -4,12 +4,12 @@ use crate::prelude::Vec2;
 
 /// Compute the edge function value for point p relative to edge (a -> b).
 ///
-/// Returns a positive value if p is to the left of the edge (counter-clockwise),
-/// negative if to the right (clockwise), and zero if exactly on the edge.
+/// Returns a positive value if p is to the right of the edge (clockwise),
+/// negative if to the left (counter-clockwise), and zero if exactly on the edge.
 /// This is the 2D cross product: (b - a) × (p - a)
 #[inline]
 pub fn edge_function(a: Vec2, b: Vec2, p: Vec2) -> f32 {
-    (p.x - a.x) * (b.y - a.y) - (p.y - a.y) * (b.x - a.x)
+    (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
 }
 
 /// Compute the signed area (times 2) of triangle (v0, v1, v2).

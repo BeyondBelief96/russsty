@@ -190,15 +190,18 @@ impl ScanlineRasterizer {
             );
         } else {
             // General triangle - split into flat-bottom + flat-top
+
+            // t is the ratio of the height of the triangle from sv0 to sv1 to the total height of the triangle
             let t = (sv1.y - sv0.y) / (sv2.y - sv0.y);
+            // We calculate the midpoint x coordinate by interpolating the x coordinates of sv0 and sv2 based on the ratio t
             let split_x = sv0.x + (sv2.x - sv0.x) * t;
             let split_point = Vec3::new(split_x, sv1.y, 0.0);
 
             // Fill top half (flat-bottom)
             Self::fill_flat_bottom_with_shader(
                 sv0,
-                sv1,
                 split_point,
+                sv1,
                 v0_2d,
                 v1_2d,
                 v2_2d, // Always use original for barycentrics
@@ -209,7 +212,15 @@ impl ScanlineRasterizer {
 
             // Fill bottom half (flat-top)
             Self::fill_flat_top_with_shader(
-                sv1, split_point, sv2, v0_2d, v1_2d, v2_2d, inv_area, buffer, shader,
+                sv1,
+                split_point,
+                sv2,
+                v0_2d,
+                v1_2d,
+                v2_2d,
+                inv_area,
+                buffer,
+                shader,
             );
         }
     }
