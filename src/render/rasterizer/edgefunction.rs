@@ -41,12 +41,23 @@
 //! checking the sign of the total signed area. For CW triangles, all edge
 //! functions will be negative for interior points; for CCW, all positive.
 //!
+//! # Top-Left Fill Rule
+//!
+//! To avoid double-drawing pixels on shared edges between adjacent triangles,
+//! we implement the top-left fill convention (same as GPUs):
+//!
+//! - A pixel exactly on an edge is only drawn if that edge is a "top" or "left" edge
+//! - **Top edge**: Horizontal edge where the triangle extends below (edge points left)
+//! - **Left edge**: Non-horizontal edge that goes upward (in screen space, dy < 0)
+//!
+//! This ensures each pixel on a shared edge is owned by exactly one triangle.
+//!
 //! # References
 //!
 //! - Juan Pineda, "A Parallel Algorithm for Polygon Rasterization" (1988)
 //! - Scratchapixel: <https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation>
 
-use super::shader::{FlatShader, GouraudShader, PixelShader, TextureModulateShader, TextureShader};
+use super::shader::{FlatShader, GouraudShader, PixelShader};
 use super::{Rasterizer, Triangle};
 use crate::engine::TextureMode;
 use crate::math::vec3::Vec3;
@@ -109,6 +120,29 @@ impl EdgeFunctionRasterizer {
         (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
     }
 
+    /// Determines if an edge from A to B is a "top" or "left" edge.
+    ///
+    /// Used for the top-left fill rule to ensure pixels on shared edges
+    /// are drawn by exactly one triangle.
+    ///
+    /// In screen space (Y increases downward):
+    /// - **Top edge**: Horizontal (dy == 0) and pointing left (dx < 0)
+    /// - **Left edge**: Going upward (dy < 0)
+    ///
+    /// # Arguments
+    ///
+    /// * `a` - Start point of the edge
+    /// * `b` - End point of the edge
+    #[inline]
+    fn is_top_left(a: Vec3, b: Vec3) -> bool {
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+
+        // Top edge: horizontal and pointing left
+        // Left edge: going upward (dy < 0 in screen space)
+        (dy == 0.0 && dx < 0.0) || dy < 0.0
+    }
+
     /// Rasterize a triangle using the provided pixel shader.
     ///
     /// This method handles all the common rasterization logic:
@@ -150,7 +184,21 @@ impl EdgeFunctionRasterizer {
         let inv_area = 1.0 / area;
 
         // ─────────────────────────────────────────────────────────────────────
-        // Step 3: Iterate over all pixels in bounding box
+        // Step 3: Compute top-left edge biases
+        // ─────────────────────────────────────────────────────────────────────
+        // For the top-left fill rule, we add a small bias to non-top-left edges
+        // so that pixels exactly on those edges are excluded (w + bias < 0 or > 0).
+        // Top-left edges get no bias, so pixels on them are included.
+        //
+        // Edge 0: v1 -> v2 (opposite to v0)
+        // Edge 1: v2 -> v0 (opposite to v1)
+        // Edge 2: v0 -> v1 (opposite to v2)
+        let bias0: f32 = if Self::is_top_left(v1, v2) { 0.0 } else { -1.0 };
+        let bias1: f32 = if Self::is_top_left(v2, v0) { 0.0 } else { -1.0 };
+        let bias2: f32 = if Self::is_top_left(v0, v1) { 0.0 } else { -1.0 };
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Step 4: Iterate over all pixels in bounding box
         // ─────────────────────────────────────────────────────────────────────
         for y in min_y..=max_y {
             for x in min_x..=max_x {
@@ -162,15 +210,19 @@ impl EdgeFunctionRasterizer {
                 let w1 = Self::edge_function(v2, v0, p);
                 let w2 = Self::edge_function(v0, v1, p);
 
-                // Inside test (handles both CW and CCW winding)
+                // Inside test with top-left rule (handles both CW and CCW winding)
+                // The bias shifts the decision boundary for non-top-left edges
                 let inside = if area > 0.0 {
-                    w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0
+                    // CCW winding: positive edge functions for interior
+                    (w0 + bias0) >= 0.0 && (w1 + bias1) >= 0.0 && (w2 + bias2) >= 0.0
                 } else {
-                    w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0
+                    // CW winding: negative edge functions for interior
+                    // Flip bias sign for CW triangles
+                    (w0 - bias0) <= 0.0 && (w1 - bias1) <= 0.0 && (w2 - bias2) <= 0.0
                 };
 
                 if inside {
-                    // Compute barycentric coordinates
+                    // Compute barycentric coordinates (use original w values, not biased)
                     let lambda = [w0 * inv_area, w1 * inv_area, w2 * inv_area];
 
                     // Delegate to shader for color computation

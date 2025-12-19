@@ -59,19 +59,57 @@ cargo check
 
 This is a CPU-based software-rendered 3D graphics engine using SDL2 only for window management and display.
 
+### Coordinate System
+
+**Left-handed coordinate system:**
+- X-axis: positive right
+- Y-axis: positive down (screen space)
+- Z-axis: positive into the screen
+
+This affects:
+- Cross product calculations (use left-hand rule)
+- Winding order interpretation
+- Projection matrices use `Mat4::perspective_lh`
+
 ### Rendering Pipeline
 
 1. **Mesh Loading** (`mesh.rs`): Loads OBJ files via `tobj` or uses built-in cube mesh. Faces use 1-based vertex indices.
 
 2. **Transform & Projection** (`engine.rs:update()`):
-   - Model → World: Applies rotation transforms (X, Y, Z axes)
-   - World → View: Translates by camera position
+   - Model → World: Scale, then rotation (X, Y, Z axes), then translation
+   - Lighting: Computed per-face (flat) or per-vertex (Gouraud) and stored in `vertex_colors`
    - Backface culling via cross product normal and dot product with camera ray
-   - Perspective projection using FOV factor division
+   - Perspective projection using left-handed perspective matrix
+   - Depth sorting via painter's algorithm (back-to-front)
 
-3. **Rasterization** (`rasterizer/scanline.rs`): Scanline algorithm using flat-top/flat-bottom triangle decomposition. Fills triangles into FrameBuffer.
+3. **Rasterization** (`rasterizer/`): Two algorithms available:
+   - **Scanline** (`scanline.rs`): Flat-top/flat-bottom triangle decomposition
+   - **Edge Function** (`edgefunction.rs`): Bounding box iteration with edge function tests (GPU-style)
 
 4. **Display** (`window.rs`): FrameBuffer bytes are uploaded to an SDL streaming texture (ARGB8888) and copied to canvas.
+
+### Shading Modes
+
+Controlled via `ShadingMode` enum:
+- **None**: No lighting, base color only
+- **Flat** (default): One color per face based on face normal
+- **Gouraud**: Per-vertex lighting interpolated across face using barycentric coordinates
+
+### Texture Modes
+
+Controlled via `TextureMode` enum:
+- **None** (default): Use shading color only
+- **Replace**: Texture color replaces shading entirely (no lighting)
+- **Modulate**: Texture color multiplied by lighting intensity (vertex_colors)
+
+Texture mapping uses perspective-correct interpolation via `PerspectiveCorrectTextureShader` and `PerspectiveCorrectTextureModulateShader`.
+
+### Lighting
+
+Single directional light (`light.rs`):
+- Direction-based diffuse lighting
+- Ambient intensity for shadow areas
+- Lighting is pre-computed in `engine.rs:update()` and stored in triangle's `vertex_colors`
 
 ### Module Visibility
 
@@ -84,6 +122,7 @@ This is a CPU-based software-rendered 3D graphics engine using SDL2 only for win
 - **Renderer**: Owns the color buffer (`Vec<u32>`), provides primitive drawing (pixels, lines, rectangles, grid).
 - **FrameBuffer**: Borrowed view into Renderer's buffer for rasterization with bounds-checked pixel access.
 - **Window**: SDL2 wrapper handling events, texture management, and frame presentation.
+- **Triangle**: Stores projected vertices, colors, texture coords, shading/texture modes for rasterization.
 
 ### Render Modes (keys 1-5)
 
