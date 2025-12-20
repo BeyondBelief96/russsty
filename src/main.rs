@@ -22,10 +22,10 @@ fn main() -> Result<(), String> {
     let mut engine = Engine::new(window.width(), window.height());
 
     engine
-        .load_mesh("assets/crab.obj")
+        .load_mesh("assets/bunny.obj")
         .map_err(|e| e.to_string())?;
 
-    let texture = Texture::from_file("assets/crab.png").map_err(|e| e.to_string())?;
+    let texture = Texture::from_file("assets/f22.png").map_err(|e| e.to_string())?;
     engine.set_texture(texture);
 
     // Start with texture mode enabled so we can see it
@@ -79,7 +79,7 @@ fn main() -> Result<(), String> {
         let _delta_time = frame_limiter.wait_and_get_delta(&window);
 
         let mesh = engine.mesh_mut();
-        mesh.translation_mut().z = 5.0;
+        mesh.translation_mut().z = 10.0;
 
         //mesh.rotation_mut().x += 0.01;
         mesh.rotation_mut().y += 0.01;
