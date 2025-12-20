@@ -205,7 +205,7 @@ impl Engine {
         self.texture_mode
     }
 
-    /// Update the engine state - transforms vertices and builds triangles to render
+    /// Update the engine state - transforms vertices and builds triangles to render.
     pub fn update(&mut self) {
         let faces = self.mesh.faces().to_vec();
         let vertices = self.mesh.vertices().to_vec();
