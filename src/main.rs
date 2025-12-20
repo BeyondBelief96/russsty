@@ -93,11 +93,11 @@ fn main() -> Result<(), String> {
         }
 
         let delta_ms = frame_limiter.wait_and_get_delta(&window);
-        let delta_sec = delta_ms as f32 / 1000.0;
+        let delta_time_sec = delta_ms as f32 / 1000.0;
 
         // Update camera when mouse is captured
         if window.is_mouse_captured() {
-            camera_controller.update(engine.camera_mut(), window.input_state(), delta_sec);
+            camera_controller.update(engine.camera_mut(), window.input_state(), delta_time_sec);
         }
 
         engine.update();

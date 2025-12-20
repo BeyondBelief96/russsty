@@ -53,6 +53,7 @@ impl Vec3 {
         Self { x, y, z }
     }
 
+    /// Creates a new vector by rotating the current vector about the x axis by the given angle expected to be in radians
     pub fn rotate_x(&self, angle: f32) -> Self {
         let sin = angle.sin();
         let cos = angle.cos();
@@ -63,6 +64,7 @@ impl Vec3 {
         }
     }
 
+    /// Creates a new vector by rotating the current vector about the y axis by the given angle expected to be in radians
     pub fn rotate_y(&self, angle: f32) -> Self {
         let sin = angle.sin();
         let cos = angle.cos();
@@ -73,6 +75,7 @@ impl Vec3 {
         }
     }
 
+    /// Creates a new vector by rotating the current vector about the z axis by the given angle expected to be in radians
     pub fn rotate_z(&self, angle: f32) -> Self {
         let sin = angle.sin();
         let cos = angle.cos();

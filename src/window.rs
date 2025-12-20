@@ -228,9 +228,8 @@ impl Window {
 
         // SAFETY: texture_creator is heap-allocated and lives as long as Window.
         // We ensure texture is dropped before texture_creator by struct field order.
-        let texture_creator_ref: &'static sdl2::render::TextureCreator<
-            sdl2::video::WindowContext,
-        > = unsafe { &*(texture_creator.as_ref() as *const _) };
+        let texture_creator_ref: &'static sdl2::render::TextureCreator<sdl2::video::WindowContext> =
+            unsafe { &*(texture_creator.as_ref() as *const _) };
         let texture = texture_creator_ref
             .create_texture_streaming(PixelFormatEnum::ARGB8888, width, height)
             .map_err(|e| e.to_string())?;
@@ -447,9 +446,8 @@ impl Window {
         self.width = width;
         self.height = height;
         // SAFETY: Same as in new() - texture_creator outlives texture
-        let texture_creator_ref: &'static sdl2::render::TextureCreator<
-            sdl2::video::WindowContext,
-        > = unsafe { &*(self.texture_creator.as_ref() as *const _) };
+        let texture_creator_ref: &'static sdl2::render::TextureCreator<sdl2::video::WindowContext> =
+            unsafe { &*(self.texture_creator.as_ref() as *const _) };
         self.texture = texture_creator_ref
             .create_texture_streaming(PixelFormatEnum::ARGB8888, width, height)
             .map_err(|e| e.to_string())?;
